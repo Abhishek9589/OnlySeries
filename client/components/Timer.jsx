@@ -1,22 +1,44 @@
-import { useMemo } from "react";
+import { useMemo, useEffect, useRef } from "react";
 import { Clock } from "lucide-react";
+import { gsap } from "gsap";
 
 export default function Timer({ bookmarks, watchFilter }) {
+  const timerRef = useRef(null);
+  const prevFilterRef = useRef(watchFilter);
   const { totalMinutes, movieCount, seriesCount } = useMemo(() => {
     let movies = 0;
     let series = 0;
+    let total = 0;
+    const processedFranchises = new Set();
 
-    const total = bookmarks.reduce((total, item) => {
+    bookmarks.forEach((item) => {
       if (item.type === "movie") {
-        movies++;
-        return total + (item.runtime || 120); // Default 2 hours if no runtime
+        if (item.franchise) {
+          // For franchise movies, only count once per franchise
+          if (!processedFranchises.has(item.franchise)) {
+            processedFranchises.add(item.franchise);
+            movies++; // Count franchise as 1 movie unit
+
+            // Calculate total runtime for all movies in this franchise
+            const franchiseMovies = bookmarks.filter(b => b.franchise === item.franchise);
+            const franchiseRuntime = franchiseMovies.reduce((sum, movie) => {
+              return sum + (movie.runtime || 120);
+            }, 0);
+            total += franchiseRuntime;
+          }
+          // Skip individual franchise movies (already counted above)
+        } else {
+          // Regular individual movie
+          movies++;
+          total += (item.runtime || 120);
+        }
       } else {
+        // Series
         series++;
-        // For series: episodes * average runtime (assume 45 min per episode)
-        const episodeCount = item.episodes || (item.seasons || 1) * 10; // Default 10 episodes per season
-        return total + episodeCount * 45;
+        const episodeCount = item.episodes || (item.seasons || 1) * 10;
+        total += episodeCount * 45;
       }
-    }, 0);
+    });
 
     return {
       totalMinutes: total,
@@ -39,14 +61,30 @@ export default function Timer({ bookmarks, watchFilter }) {
 
   const time = formatTime(totalMinutes);
 
+  // Animate timer when filter changes
+  useEffect(() => {
+    if (prevFilterRef.current !== watchFilter && timerRef.current) {
+      gsap.fromTo(timerRef.current,
+        { scale: 0.95, opacity: 0.7 },
+        {
+          scale: 1,
+          opacity: 1,
+          duration: 0.4,
+          ease: "power2.out"
+        }
+      );
+    }
+    prevFilterRef.current = watchFilter;
+  }, [watchFilter]);
+
   return (
-    <div className="text-center">
+    <div ref={timerRef} className="text-center">
       {/* Main Timer Display */}
       <div className="relative inline-block">
-        <div className="text-6xl md:text-8xl font-mono font-bold text-transparent bg-gradient-to-r from-primary via-primary to-teal bg-clip-text mb-2 tracking-wider drop-shadow-lg">
+        <div className="text-6xl md:text-8xl font-mono font-bold text-transparent bg-gradient-to-r from-primary via-primary to-teal bg-clip-text mb-2 tracking-wider drop-shadow-lg transition-all duration-500">
           {time.days}:{time.hours}:{time.minutes}
         </div>
-        <div className="absolute inset-0 text-6xl md:text-8xl font-mono font-bold text-primary/20 blur-sm -z-10">
+        <div className="absolute inset-0 text-6xl md:text-8xl font-mono font-bold text-primary/20 blur-sm -z-10 transition-all duration-500">
           {time.days}:{time.hours}:{time.minutes}
         </div>
       </div>

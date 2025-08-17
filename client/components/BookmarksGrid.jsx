@@ -25,11 +25,13 @@ export default function BookmarksGrid({
           {
             scale: 0.8,
             opacity: 0,
+            y: 20,
           },
           {
             scale: 1,
             opacity: 1,
-            duration: 0.3,
+            y: 0,
+            duration: 0.4,
             ease: "power2.out",
           },
         );
@@ -99,7 +101,22 @@ export default function BookmarksGrid({
 
   const handleRemoveClick = (e, id, type) => {
     e.stopPropagation();
-    onRemoveBookmark(id, type);
+
+    // Animate card removal
+    const cardElement = e.currentTarget.closest('[data-bookmark-card]');
+    if (cardElement) {
+      gsap.to(cardElement, {
+        scale: 0.8,
+        opacity: 0,
+        duration: 0.3,
+        ease: "power2.out",
+        onComplete: () => {
+          onRemoveBookmark(id, type);
+        }
+      });
+    } else {
+      onRemoveBookmark(id, type);
+    }
   };
 
   const handleToggleWatchStatus = (e, id, type) => {
@@ -123,16 +140,17 @@ export default function BookmarksGrid({
           ([franchise, movies]) => (
             <div
               key={`franchise-${franchise}`}
+              data-bookmark-card
               className="relative group cursor-pointer w-full max-w-[220px]"
               onMouseEnter={() => setHoveredCard(`franchise-${franchise}`)}
               onMouseLeave={() => setHoveredCard(null)}
               onClick={() => onCardClick({ ...movies[0], franchise })}
             >
-              <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-gradient-to-br from-card via-card/90 to-card/80 border border-border/50 shadow-xl transition-all duration-300 group-hover:scale-105 group-hover:shadow-2xl group-hover:border-primary/30">
+              <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-gradient-to-br from-card via-card/90 to-card/80 border border-border/50 shadow-xl transition-all duration-500 ease-out group-hover:scale-105 group-hover:shadow-2xl group-hover:border-primary/30 group-hover:shadow-primary/10">
                 <img
                   src={movies[0].poster}
                   alt={franchise}
-                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                  className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                 />
 
                 {/* Gradient Overlay for better text visibility */}
@@ -194,16 +212,17 @@ export default function BookmarksGrid({
         {groupedBookmarks.individual.map((item) => (
           <div
             key={`${item.type}-${item.id}`}
+            data-bookmark-card
             className="relative group cursor-pointer w-full max-w-[220px]"
             onMouseEnter={() => setHoveredCard(`${item.type}-${item.id}`)}
             onMouseLeave={() => setHoveredCard(null)}
             onClick={() => onCardClick(item)}
           >
-            <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-card/80 backdrop-blur-sm border border-border/30 shadow-xl transition-all duration-300 group-hover:scale-105 group-hover:shadow-2xl">
+            <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-card/80 backdrop-blur-sm border border-border/30 shadow-xl transition-all duration-500 ease-out group-hover:scale-105 group-hover:shadow-2xl group-hover:border-primary/20 group-hover:shadow-primary/10">
               <img
                 src={item.poster}
                 alt={item.title}
-                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
               />
 
 

@@ -1,5 +1,7 @@
-import { useState, useEffect } from "react";
-import { Download, Upload, ArrowDown, ArrowUp, Filter, Eye, EyeOff } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Download, Upload, ArrowDown, ArrowUp, Filter, Eye, EyeOff, Share } from "lucide-react";
+import { gsap } from "gsap";
+import { useToast } from "@/hooks/use-toast";
 import SearchBar from "../components/SearchBar";
 import Timer from "../components/Timer";
 import BookmarksGrid from "../components/BookmarksGrid";
@@ -12,6 +14,9 @@ export default function Index() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [backgroundImage, setBackgroundImage] = useState("");
   const [watchFilter, setWatchFilter] = useState("all"); // "all", "watched", "will-watch"
+  const filterButtonRef = useRef(null);
+  const gridContainerRef = useRef(null);
+  const { toast } = useToast();
 
   // Load bookmarks from localStorage on mount
   useEffect(() => {
@@ -171,10 +176,21 @@ export default function Index() {
     // Get streaming availability
     const streamingPlatforms = await getStreamingAvailability(item.id, item.title, item.type);
 
+    // Check if this franchise already exists and inherit its watch status
+    let inheritedWatchStatus = "will-watch"; // Default
+    if (franchise) {
+      const existingFranchiseMovie = bookmarks.find(
+        (bookmark) => bookmark.franchise === franchise
+      );
+      if (existingFranchiseMovie) {
+        inheritedWatchStatus = existingFranchiseMovie.watchStatus;
+      }
+    }
+
     const newItem = {
       ...item,
       franchise,
-      watchStatus: "will-watch", // Default to "will-watch"
+      watchStatus: inheritedWatchStatus,
       streamingPlatforms: streamingPlatforms || []
     };
 
@@ -195,17 +211,35 @@ export default function Index() {
   };
 
   const toggleWatchStatus = (id, type) => {
-    setBookmarks((prev) =>
-      prev.map((item) => {
-        if (item.id === id && item.type === type) {
-          return {
-            ...item,
-            watchStatus: item.watchStatus === "watched" ? "will-watch" : "watched"
-          };
-        }
-        return item;
-      })
-    );
+    setBookmarks((prev) => {
+      // Find the clicked item to check if it's part of a franchise
+      const clickedItem = prev.find(item => item.id === id && item.type === type);
+
+      if (clickedItem?.franchise) {
+        // If it's a franchise item, toggle ALL movies in the franchise
+        const newStatus = clickedItem.watchStatus === "watched" ? "will-watch" : "watched";
+        return prev.map((item) => {
+          if (item.franchise === clickedItem.franchise) {
+            return {
+              ...item,
+              watchStatus: newStatus
+            };
+          }
+          return item;
+        });
+      } else {
+        // Regular item, just toggle this one
+        return prev.map((item) => {
+          if (item.id === id && item.type === type) {
+            return {
+              ...item,
+              watchStatus: item.watchStatus === "watched" ? "will-watch" : "watched"
+            };
+          }
+          return item;
+        });
+      }
+    });
   };
 
   // Filter bookmarks based on watch status
@@ -254,6 +288,18 @@ export default function Index() {
     setDialogOpen(true);
   };
 
+  // Update selectedItem when bookmarks change to keep dialog in sync
+  useEffect(() => {
+    if (selectedItem && dialogOpen) {
+      const updatedItem = bookmarks.find(
+        (bookmark) => bookmark.id === selectedItem.id && bookmark.type === selectedItem.type
+      );
+      if (updatedItem) {
+        setSelectedItem(updatedItem);
+      }
+    }
+  }, [bookmarks, selectedItem, dialogOpen]);
+
   const downloadBookmarks = () => {
     const dataStr = JSON.stringify(bookmarks, null, 2);
     const dataBlob = new Blob([dataStr], { type: "application/json" });
@@ -280,6 +326,93 @@ export default function Index() {
         }
       };
       reader.readAsText(file);
+    }
+  };
+
+  const shareWatchlist = async () => {
+    const totalMovies = bookmarks.filter(item => item.type === 'movie').length;
+    const totalSeries = bookmarks.filter(item => item.type === 'tv').length;
+    const watchedItems = bookmarks.filter(item => item.watchStatus === 'watched').length;
+
+    const shareText = `Check out my watchlist! I have ${totalMovies} movies and ${totalSeries} series tracked, with ${watchedItems} already watched. Built with OnlySeries.`;
+    const shareUrl = window.location.href;
+    const fullShareText = `${shareText} ${shareUrl}`;
+
+    const shareData = {
+      title: 'My OnlySeries Watchlist',
+      text: shareText,
+      url: shareUrl
+    };
+
+    try {
+      // Try Web Share API first (mobile/modern browsers)
+      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+        toast({
+          title: "Shared successfully!",
+          description: "Your watchlist has been shared.",
+        });
+        return;
+      }
+
+      // Try clipboard API with proper permissions check
+      if (navigator.clipboard && window.isSecureContext) {
+        try {
+          await navigator.clipboard.writeText(fullShareText);
+          toast({
+            title: "Copied to clipboard!",
+            description: "Share text has been copied to your clipboard.",
+          });
+          return;
+        } catch (clipboardError) {
+          console.warn('Clipboard API failed:', clipboardError);
+        }
+      }
+
+      // Fallback: Manual copy with text selection
+      const textArea = document.createElement('textarea');
+      textArea.value = fullShareText;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+
+      try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+          toast({
+            title: "Copied to clipboard!",
+            description: "Share text has been copied to your clipboard.",
+          });
+        } else {
+          // Final fallback: show manual copy dialog
+          toast({
+            title: "Copy manually",
+            description: fullShareText,
+            duration: 10000,
+          });
+        }
+      } catch (execError) {
+        // Final fallback: show manual copy dialog
+        toast({
+          title: "Copy manually",
+          description: fullShareText,
+          duration: 10000,
+        });
+      }
+
+      document.body.removeChild(textArea);
+
+    } catch (error) {
+      console.error('Error sharing:', error);
+      // Final fallback: show manual copy dialog
+      toast({
+        title: "Copy manually",
+        description: fullShareText,
+        duration: 10000,
+      });
     }
   };
 
@@ -318,11 +451,53 @@ export default function Index() {
             {/* Filter Button - Show when there are bookmarks */}
             {hasBookmarks && (
               <button
+                ref={filterButtonRef}
                 onClick={() => {
                   const nextFilter =
                     watchFilter === "all" ? "will-watch" :
                     watchFilter === "will-watch" ? "watched" : "all";
-                  setWatchFilter(nextFilter);
+
+                  // Animate filter button
+                  gsap.to(filterButtonRef.current, {
+                    scale: 0.95,
+                    duration: 0.1,
+                    yoyo: true,
+                    repeat: 1,
+                    ease: "power2.out"
+                  });
+
+                  // Animate grid items out and in
+                  if (gridContainerRef.current) {
+                    const cards = gridContainerRef.current.querySelectorAll('[data-bookmark-card]');
+                    gsap.to(cards, {
+                      opacity: 0,
+                      scale: 0.9,
+                      duration: 0.2,
+                      stagger: 0.02,
+                      ease: "power2.out",
+                      onComplete: () => {
+                        setWatchFilter(nextFilter);
+                        // Animate new filtered items in
+                        setTimeout(() => {
+                          const newCards = gridContainerRef.current?.querySelectorAll('[data-bookmark-card]');
+                          if (newCards) {
+                            gsap.fromTo(newCards,
+                              { opacity: 0, scale: 0.9 },
+                              {
+                                opacity: 1,
+                                scale: 1,
+                                duration: 0.3,
+                                stagger: 0.02,
+                                ease: "power2.out"
+                              }
+                            );
+                          }
+                        }, 50);
+                      }
+                    });
+                  } else {
+                    setWatchFilter(nextFilter);
+                  }
                 }}
                 className={`p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50 ${
                   watchFilter !== "all" ? "ring-2 ring-primary" : ""
@@ -362,6 +537,14 @@ export default function Index() {
                 className="hidden"
               />
             </label>
+            <button
+              onClick={shareWatchlist}
+              disabled={!hasBookmarks}
+              className="p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg border border-border/50"
+              title="Share Watchlist"
+            >
+              <Share className="w-5 h-5" />
+            </button>
           </div>
 
           {/* Search Bar */}
@@ -379,7 +562,7 @@ export default function Index() {
           {/* Bookmarks Grid - Center-aligned */}
           {hasBookmarks ? (
             <div className="flex justify-center">
-              <div className="max-w-7xl w-full">
+              <div ref={gridContainerRef} className="max-w-7xl w-full">
                 <BookmarksGrid
                   bookmarks={filteredBookmarks}
                   onRemoveBookmark={handleRemoveBookmark}

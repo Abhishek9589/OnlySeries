@@ -116,11 +116,15 @@ export default function DialogBox({
                     {/* Watch Status Toggle */}
                     {onToggleWatchStatus && (
                       <button
-                        onClick={() => onToggleWatchStatus(item.id, item.type)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onToggleWatchStatus(item.id, item.type);
+                        }}
                         className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
                           item.watchStatus === "watched"
-                            ? "bg-green-100 text-green-700 border border-green-300 hover:bg-green-200"
-                            : "bg-blue-100 text-blue-700 border border-blue-300 hover:bg-blue-200"
+                            ? "bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
+                            : "bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30"
                         }`}
                       >
                         {item.watchStatus === "watched" ? (
@@ -136,32 +140,32 @@ export default function DialogBox({
 
                     {/* Streaming Platforms */}
                     {item.streamingPlatforms && item.streamingPlatforms.length > 0 && (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm text-muted-foreground">Available on:</span>
-                        <div className="flex gap-1">
-                          {item.streamingPlatforms.slice(0, 5).map((platform) => {
+                        <div className="flex gap-2 flex-wrap">
+                          {item.streamingPlatforms.slice(0, 4).map((platform) => {
                             const platformInfo = getPlatformInfo(platform);
                             return platformInfo ? (
-                              <div
+                              <span
                                 key={platform}
-                                className="w-8 h-8 rounded-lg flex items-center justify-center text-sm shadow-sm border"
+                                className="px-2 py-1 rounded-md text-xs font-medium border"
                                 style={{
-                                  backgroundColor: platformInfo.color + "20",
-                                  borderColor: platformInfo.color + "40"
+                                  backgroundColor: platformInfo.color + "15",
+                                  borderColor: platformInfo.color + "30",
+                                  color: platformInfo.color
                                 }}
-                                title={platformInfo.name}
                               >
-                                {platformInfo.icon}
-                              </div>
+                                {platformInfo.name}
+                              </span>
                             ) : null;
                           })}
-                          {item.streamingPlatforms.length > 5 && (
-                            <div
-                              className="w-8 h-8 rounded-lg bg-gray-100 border border-gray-300 flex items-center justify-center text-xs font-bold text-gray-600"
-                              title={`+${item.streamingPlatforms.length - 5} more platforms`}
+                          {item.streamingPlatforms.length > 4 && (
+                            <span
+                              className="px-2 py-1 rounded-md text-xs font-medium bg-muted text-muted-foreground border border-border"
+                              title={`+${item.streamingPlatforms.length - 4} more platforms`}
                             >
-                              +{item.streamingPlatforms.length - 5}
-                            </div>
+                              +{item.streamingPlatforms.length - 4} more
+                            </span>
                           )}
                         </div>
                       </div>
@@ -211,12 +215,6 @@ export default function DialogBox({
                       {formatWatchTime(item.runtime || 120)}
                     </div>
                   </div>
-                </div>
-
-                <div className="bg-gradient-to-r from-primary/10 to-teal/10 rounded-xl p-4 border border-primary/20">
-                  <p className="text-lg text-foreground font-medium">
-                    Total watch time: {formatWatchTime(item.runtime || 120)}
-                  </p>
                 </div>
 
                 {onRemove && (
