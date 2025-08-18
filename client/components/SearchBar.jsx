@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, memo } from "react";
-import { Search, Loader2, X } from "lucide-react";
+import { Search, Loader2, X, WifiOff } from "lucide-react";
+import { useOffline } from "../hooks/use-offline";
+import FallbackImage from "./FallbackImage";
 import {
   searchMovies,
   searchTV,
@@ -17,6 +19,8 @@ const SearchBar = memo(function SearchBar({
   const [results, setResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const isOffline = useOffline();
 
   const debounce = (func, delay) => {
     let timeoutId;
@@ -61,11 +65,22 @@ const SearchBar = memo(function SearchBar({
     if (!normalizedQuery || normalizedQuery.length < 2) {
       setResults([]);
       setShowResults(false);
+      setHasError(false);
+      return;
+    }
+
+    // Check if offline
+    if (isOffline) {
+      setResults([]);
+      setShowResults(true);
+      setHasError(true);
+      setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
     setShowResults(true);
+    setHasError(false);
 
     try {
       // Search both movies and TV shows in parallel
@@ -272,6 +287,14 @@ const SearchBar = memo(function SearchBar({
               <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
               <span className="text-muted-foreground">Searching...</span>
             </div>
+          ) : hasError && isOffline ? (
+            <div className="p-6 text-center text-muted-foreground">
+              <WifiOff className="w-8 h-8 mx-auto mb-3 opacity-50" />
+              <p className="font-medium">You're offline</p>
+              <p className="text-sm mt-1">
+                Search requires an internet connection
+              </p>
+            </div>
           ) : results.length > 0 ? (
             <div className="divide-y divide-border/30">
               {results.map((item) => (
@@ -280,11 +303,13 @@ const SearchBar = memo(function SearchBar({
                   onClick={() => handleAddBookmark(item)}
                   className="flex items-center p-4 hover:bg-accent/20 cursor-pointer transition-colors group"
                 >
-                  <div className="relative">
-                    <img
+                  <div className="relative mr-4">
+                    <FallbackImage
                       src={item.poster}
                       alt={item.title}
-                      className="w-12 h-18 object-cover rounded-lg mr-4 shadow-md"
+                      type={item.type}
+                      className="w-12 h-18 object-cover rounded-lg shadow-md"
+                      fallbackClassName="w-12 h-18 rounded-lg text-xs"
                     />
                     <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg" />
                   </div>

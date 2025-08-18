@@ -4,6 +4,7 @@ import SearchBar from "../components/SearchBar";
 import Timer from "../components/Timer";
 import BookmarksGrid from "../components/BookmarksGrid";
 import DialogBox from "../components/DialogBox";
+import OfflineBanner from "../components/OfflineBanner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -259,6 +260,9 @@ export default function Index() {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
+      {/* Offline Banner */}
+      <OfflineBanner />
+
       {/* Background Image with Simple Blur */}
       {backgroundImage && (
         <div

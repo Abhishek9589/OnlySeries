@@ -1,7 +1,6 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { handleDemo } from "./routes/demo.js";
 import {
   searchMovies,
   searchTV,
@@ -25,7 +24,6 @@ export function createServer() {
     res.json({ message: ping });
   });
 
-  app.get("/api/demo", handleDemo);
 
   // TMDb proxy routes
   app.get("/api/search/movies", searchMovies);
