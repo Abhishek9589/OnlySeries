@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Clock, Star, Film, Tv, Calendar, Play, Eye, Check } from "lucide-react";
+import { X, Clock, Star, Film, Tv, Calendar, Play, Eye, Check, EyeOff } from "lucide-react";
 import { gsap } from "gsap";
 
 export default function BookmarksGrid({
@@ -155,20 +155,18 @@ export default function BookmarksGrid({
                           e.stopPropagation();
                           onToggleWatchStatus(movies[0].id, movies[0].type);
                         }}
-                        className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-all text-xs ${
+                        className={`p-2 rounded-lg transition-all ${
                           movies[0].watchStatus === "watched"
                             ? "bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
                             : "bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30"
                         }`}
+                        title={movies[0].watchStatus === "watched" ? "Watched" : "Will Watch"}
                       >
                         {movies[0].watchStatus === "watched" ? (
-                          <Check className="w-3 h-3" />
+                          <EyeOff className="w-4 h-4" />
                         ) : (
-                          <Eye className="w-3 h-3" />
+                          <Eye className="w-4 h-4" />
                         )}
-                        <span className="font-medium">
-                          {movies[0].watchStatus === "watched" ? "Watched" : "Will Watch"}
-                        </span>
                       </button>
                       <button
                         onClick={(e) =>
@@ -231,20 +229,18 @@ export default function BookmarksGrid({
                         e.stopPropagation();
                         onToggleWatchStatus(item.id, item.type);
                       }}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-all text-xs ${
+                      className={`p-2 rounded-lg transition-all ${
                         item.watchStatus === "watched"
                           ? "bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
                           : "bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30"
                       }`}
+                      title={item.watchStatus === "watched" ? "Watched" : "Will Watch"}
                     >
                       {item.watchStatus === "watched" ? (
-                        <Check className="w-3 h-3" />
+                        <EyeOff className="w-4 h-4" />
                       ) : (
-                        <Eye className="w-3 h-3" />
+                        <Eye className="w-4 h-4" />
                       )}
-                      <span className="font-medium">
-                        {item.watchStatus === "watched" ? "Watched" : "Will Watch"}
-                      </span>
                     </button>
                     <button
                       onClick={(e) => handleRemoveClick(e, item.id, item.type)}

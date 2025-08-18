@@ -1,9 +1,15 @@
 import { useState, useEffect } from "react";
-import { Download, Upload, ArrowDown, ArrowUp, Filter } from "lucide-react";
+import { Download, Upload, ArrowDown, ArrowUp, Filter, Share2, Eye, EyeOff } from "lucide-react";
 import SearchBar from "../components/SearchBar";
 import Timer from "../components/Timer";
 import BookmarksGrid from "../components/BookmarksGrid";
 import DialogBox from "../components/DialogBox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu";
 
 export default function Index() {
   const [bookmarks, setBookmarks] = useState([]);
@@ -11,6 +17,7 @@ export default function Index() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [backgroundImage, setBackgroundImage] = useState("");
   const [watchFilter, setWatchFilter] = useState("all"); // "all", "watched", "unwatched"
+  const [shareToast, setShareToast] = useState(false);
 
   // Load bookmarks from localStorage on mount
   useEffect(() => {
@@ -195,34 +202,25 @@ export default function Index() {
 
   const handleToggleWatchStatus = (id, type) => {
     setBookmarks((prev) => {
-      const updatedBookmarks = prev.map((item) => {
+      // Find the item to toggle
+      const targetItem = prev.find(item => item.id === id && item.type === type);
+      if (!targetItem) return prev;
+
+      const newStatus = targetItem.watchStatus === "watched" ? "unwatched" : "watched";
+
+      return prev.map((item) => {
+        // If this is the target item, update it
         if (item.id === id && item.type === type) {
-          const newStatus = item.watchStatus === "watched" ? "unwatched" : "watched";
-
-          // If this is a franchise item, update all items in the same franchise
-          if (item.franchise) {
-            const franchiseItems = prev.filter(bookmark => bookmark.franchise === item.franchise);
-            return { ...item, watchStatus: newStatus };
-          }
-
           return { ...item, watchStatus: newStatus };
         }
+
+        // If target item has a franchise, update all items in the same franchise
+        if (targetItem.franchise && item.franchise === targetItem.franchise) {
+          return { ...item, watchStatus: newStatus };
+        }
+
         return item;
       });
-
-      // Check for franchise inheritance - if toggling a franchise item
-      const toggledItem = updatedBookmarks.find(item => item.id === id && item.type === type);
-      if (toggledItem?.franchise) {
-        return updatedBookmarks.map(item => {
-          // Update all items in the same franchise
-          if (item.franchise === toggledItem.franchise) {
-            return { ...item, watchStatus: toggledItem.watchStatus };
-          }
-          return item;
-        });
-      }
-
-      return updatedBookmarks;
     });
   };
 
@@ -300,26 +298,56 @@ export default function Index() {
 
           {/* Import/Export and Filter Controls - Fixed position */}
           <div className="fixed top-6 right-6 z-50 flex gap-2">
-            <div className="relative">
-              <button
-                onClick={() => {
-                  const nextFilter = watchFilter === "all" ? "unwatched" :
-                                   watchFilter === "unwatched" ? "watched" : "all";
-                  setWatchFilter(nextFilter);
-                }}
-                className={`p-3 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50 ${
-                  watchFilter === "all" ? "bg-card/80" :
-                  watchFilter === "watched" ? "bg-green-500/80" : "bg-blue-500/80"
-                }`}
-                title={`Filter: ${watchFilter === "all" ? "All" :
-                              watchFilter === "watched" ? "Watched" : "Will Watch"}`}
-              >
-                <Filter className="w-5 h-5" />
-              </button>
-              {watchFilter !== "all" && (
-                <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-primary"></div>
-              )}
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className={`p-3 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50 relative ${
+                    watchFilter === "all" ? "bg-card/80" :
+                    watchFilter === "watched" ? "bg-green-500/80" : "bg-blue-500/80"
+                  }`}
+                  title="Filter watchlist"
+                >
+                  <Filter className="w-5 h-5" />
+                  {watchFilter !== "all" && (
+                    <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-primary"></div>
+                  )}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem
+                  onClick={() => setWatchFilter("all")}
+                  className={watchFilter === "all" ? "bg-accent" : ""}
+                >
+                  <Filter className="w-4 h-4" />
+                  All Items
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setWatchFilter("unwatched")}
+                  className={watchFilter === "unwatched" ? "bg-blue-500/20 text-blue-400" : ""}
+                >
+                  <Eye className="w-4 h-4 text-blue-400" />
+                  Will Watch
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setWatchFilter("watched")}
+                  className={watchFilter === "watched" ? "bg-green-500/20 text-green-400" : ""}
+                >
+                  <EyeOff className="w-4 h-4 text-green-400" />
+                  Watched
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(window.location.href);
+                setShareToast(true);
+                setTimeout(() => setShareToast(false), 3000);
+              }}
+              className="p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50"
+              title="Share Website"
+            >
+              <Share2 className="w-5 h-5" />
+            </button>
             <button
               onClick={downloadBookmarks}
               disabled={!hasBookmarks}
@@ -385,6 +413,16 @@ export default function Index() {
           />
         </div>
       </div>
+
+      {/* Share Toast Notification */}
+      {shareToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-card/95 backdrop-blur-md border border-border/50 rounded-xl p-4 shadow-2xl animate-in slide-in-from-bottom-2">
+          <div className="flex items-center gap-2 text-sm text-foreground">
+            <div className="w-2 h-2 rounded-full bg-primary"></div>
+            <span>URL copied to clipboard!</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

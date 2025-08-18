@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Clock, Star, Film, Tv, Calendar, Eye, Check } from "lucide-react";
+import { X, Clock, Star, Film, Tv, Calendar, Eye, Check, EyeOff } from "lucide-react";
 import { gsap } from "gsap";
 import EpisodeRatingGrid from "./EpisodeRatingGrid";
+import StreamingPlatforms from "./StreamingPlatforms";
+import { getStreamingAvailability, getPlatformInfo } from "../lib/streaming";
 
 export default function DialogBox({
   item,
@@ -13,6 +15,7 @@ export default function DialogBox({
 }) {
   const dialogRef = useRef(null);
   const overlayRef = useRef(null);
+  const [streamingPlatforms, setStreamingPlatforms] = useState([]);
 
   useEffect(() => {
     if (isOpen && dialogRef.current && overlayRef.current) {
@@ -29,6 +32,25 @@ export default function DialogBox({
       );
     }
   }, [isOpen]);
+
+  // Fetch streaming platforms when item changes
+  useEffect(() => {
+    if (item && isOpen) {
+      const fetchStreaming = async () => {
+        try {
+          const platforms = await getStreamingAvailability(item.id, item.title, item.type);
+          const platformsWithInfo = platforms.map(platformKey => getPlatformInfo(platformKey)).filter(Boolean);
+          setStreamingPlatforms(platformsWithInfo);
+        } catch (error) {
+          console.error("Error fetching streaming platforms:", error);
+          setStreamingPlatforms([]);
+        }
+      };
+      fetchStreaming();
+    } else {
+      setStreamingPlatforms([]);
+    }
+  }, [item, isOpen]);
 
   const handleClose = () => {
     if (dialogRef.current && overlayRef.current) {
@@ -120,23 +142,25 @@ export default function DialogBox({
                           e.stopPropagation();
                           onToggleWatchStatus(item.id, item.type);
                         }}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
+                        className={`p-2 rounded-lg transition-all ${
                           item.watchStatus === "watched"
                             ? "bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
                             : "bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30"
                         }`}
+                        title={item.watchStatus === "watched" ? "Watched" : "Will Watch"}
                       >
                         {item.watchStatus === "watched" ? (
-                          <Check className="w-4 h-4" />
+                          <EyeOff className="w-5 h-5" />
                         ) : (
-                          <Eye className="w-4 h-4" />
+                          <Eye className="w-5 h-5" />
                         )}
-                        <span className="text-sm font-medium">
-                          {item.watchStatus === "watched" ? "Watched" : "Will Watch"}
-                        </span>
                       </button>
                     )}
 
+                    {/* Streaming Platforms */}
+                    {streamingPlatforms.length > 0 && (
+                      <StreamingPlatforms platforms={streamingPlatforms} />
+                    )}
                   </div>
                 </div>
               </div>
@@ -184,11 +208,10 @@ export default function DialogBox({
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-r from-primary/10 to-teal/10 rounded-xl p-4 border border-primary/20">
-                  <p className="text-lg text-foreground font-medium">
-                    Total watch time: {formatWatchTime(item.runtime || 120)}
-                  </p>
-                </div>
+                {/* Streaming Platforms for Movies */}
+                {streamingPlatforms.length > 0 && (
+                  <StreamingPlatforms platforms={streamingPlatforms} />
+                )}
 
                 {onRemove && (
                   <button
@@ -272,6 +295,11 @@ export default function DialogBox({
                 <div className="flex-1 space-y-6">
                 </div>
               </div>
+
+              {/* Streaming Platforms for TV Series */}
+              {streamingPlatforms.length > 0 && (
+                <StreamingPlatforms platforms={streamingPlatforms} />
+              )}
 
               {/* Episode Ratings Grid */}
               <div className="space-y-4">
