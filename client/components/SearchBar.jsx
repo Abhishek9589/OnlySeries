@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback, memo, useRef } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import { Search, Loader2, X } from "lucide-react";
-import { gsap } from "gsap";
 import {
   searchMovies,
   searchTV,
@@ -18,8 +17,6 @@ const SearchBar = memo(function SearchBar({
   const [results, setResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
-  const resultsRef = useRef(null);
-  const searchInputRef = useRef(null);
 
   const debounce = (func, delay) => {
     let timeoutId;
@@ -154,7 +151,7 @@ const SearchBar = memo(function SearchBar({
             result.status === "fulfilled" && result.value !== null,
         )
         .map((result) => result.value)
-        .filter((item) => item.imdbRating !== "N/A") // Only show items with IMDb ratings
+        .filter((item) => item.imdbRating !== "N/A") // Only show items with valid IMDb ratings
         .filter((item) => {
           const isAlreadyAdded = bookmarks.some(bookmark =>
             Number(bookmark.id) === Number(item.id) && bookmark.type === item.type
@@ -176,25 +173,6 @@ const SearchBar = memo(function SearchBar({
         });
 
       setResults(successfulResults);
-      setShowResults(true);
-
-      // Animate results in
-      setTimeout(() => {
-        if (resultsRef.current) {
-          const resultItems = resultsRef.current.querySelectorAll('[data-result-item]');
-          gsap.fromTo(resultItems,
-            { opacity: 0, y: 10, scale: 0.95 },
-            {
-              opacity: 1,
-              y: 0,
-              scale: 1,
-              duration: 0.3,
-              stagger: 0.05,
-              ease: "power2.out"
-            }
-          );
-        }
-      }, 50);
     } catch (error) {
       console.error("Search error:", error);
       setResults([]);
@@ -209,22 +187,11 @@ const SearchBar = memo(function SearchBar({
     debouncedSearch(searchTerm);
   }, [searchTerm, debouncedSearch]);
 
-  const handleAddBookmark = (item, event) => {
-    // Animate the added item
-    const addedElement = event.currentTarget;
-    gsap.to(addedElement, {
-      scale: 0.95,
-      duration: 0.15,
-      yoyo: true,
-      repeat: 1,
-      ease: "power2.out",
-      onComplete: () => {
-        onAddBookmark(item);
-        setSearchTerm("");
-        setResults([]);
-        setShowResults(false);
-      }
-    });
+  const handleAddBookmark = (item) => {
+    onAddBookmark(item);
+    setSearchTerm("");
+    setResults([]);
+    setShowResults(false);
   };
 
   const clearSearch = () => {
@@ -240,7 +207,6 @@ const SearchBar = memo(function SearchBar({
       <div className="relative">
         <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
         <input
-          ref={searchInputRef}
           type="text"
           placeholder="Search for a movie or series..."
           value={searchTerm}
@@ -258,7 +224,7 @@ const SearchBar = memo(function SearchBar({
       </div>
 
       {showResults && (
-        <div ref={resultsRef} className="absolute top-full left-0 right-0 mt-2 bg-card/95 backdrop-blur-md border border-border/50 rounded-2xl overflow-hidden z-50 shadow-2xl max-h-96 overflow-y-auto custom-scrollbar">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-card/95 backdrop-blur-md border border-border/50 rounded-2xl overflow-hidden z-50 shadow-2xl max-h-96 overflow-y-auto custom-scrollbar">
           {isLoading ? (
             <div className="flex items-center justify-center p-6">
               <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
@@ -269,9 +235,8 @@ const SearchBar = memo(function SearchBar({
               {results.map((item) => (
                 <div
                   key={`${item.type}-${item.id}`}
-                  data-result-item
-                  onClick={(e) => handleAddBookmark(item, e)}
-                  className="flex items-center p-4 hover:bg-accent/20 cursor-pointer transition-all duration-300 group hover:scale-[1.02] hover:shadow-lg"
+                  onClick={() => handleAddBookmark(item)}
+                  className="flex items-center p-4 hover:bg-accent/20 cursor-pointer transition-colors group"
                 >
                   <div className="relative">
                     <img

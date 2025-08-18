@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
 import { getTVSeason } from "../lib/api";
 
-export default function EpisodeRatingGrid({ tvId, seasons }) {
+export default function EpisodeRatingGrid({
+  tvId,
+  seasons,
+}) {
   const [episodes, setEpisodes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [hoveredEpisode, setHoveredEpisode] = useState(null);
@@ -17,16 +20,35 @@ export default function EpisodeRatingGrid({ tvId, seasons }) {
     try {
       const allEpisodes = [];
 
-      // Fetch episodes for all seasons (limit to first 8 seasons for performance)
-      const maxSeasons = Math.min(seasons, 8);
-      for (let season = 1; season <= maxSeasons; season++) {
-        try {
-          const seasonData = await getTVSeason(tvId, season);
-          if (seasonData.episodes) {
+      // Fetch episodes for all seasons - no arbitrary limit
+      // For very long series (>10 seasons), batch the requests to avoid overwhelming the API
+      const batchSize = 5;
+      for (let batchStart = 1; batchStart <= seasons; batchStart += batchSize) {
+        const batchEnd = Math.min(batchStart + batchSize - 1, seasons);
+        
+        // Process this batch of seasons in parallel
+        const batchPromises = [];
+        for (let season = batchStart; season <= batchEnd; season++) {
+          batchPromises.push(
+            getTVSeason(tvId, season).catch((error) => {
+              console.error(`Error fetching season ${season}:`, error);
+              return null;
+            })
+          );
+        }
+        
+        const batchResults = await Promise.all(batchPromises);
+        
+        // Add successful results to episodes
+        batchResults.forEach((seasonData) => {
+          if (seasonData?.episodes) {
             allEpisodes.push(...seasonData.episodes);
           }
-        } catch (error) {
-          console.error(`Error fetching season ${season}:`, error);
+        });
+        
+        // Small delay between batches to be API-friendly
+        if (batchEnd < seasons) {
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
 
@@ -119,69 +141,71 @@ export default function EpisodeRatingGrid({ tvId, seasons }) {
         </div>
       </div>
 
-      <div>
-        {/* Header with episode numbers */}
-        <div className="flex items-center gap-1 mb-2">
-          <div className="w-12 text-center text-xs font-medium text-muted-foreground">
-            S/E
-          </div>
-          {Array.from({ length: maxEpisodesInSeason }, (_, i) => (
-            <div key={i} className="w-12 text-center text-xs font-medium text-muted-foreground">
-              {i + 1}
+      <div className="overflow-x-auto custom-scrollbar">
+        <div className="min-w-max">
+          {/* Header with episode numbers */}
+          <div className="flex items-center gap-1 mb-2">
+            <div className="w-12 text-center text-xs font-medium text-muted-foreground flex-shrink-0">
+              S/E
             </div>
-          ))}
-        </div>
-
-        {/* Matrix Grid Layout - Rows = Seasons, Columns = Episodes */}
-        <div className="space-y-1">
-          {sortedSeasons.map((seasonNum) => (
-            <div key={seasonNum} className="flex items-center gap-1">
-              {/* Season number */}
-              <div className="w-12 text-center text-sm font-medium text-muted-foreground">
-                {seasonNum}
+            {Array.from({ length: maxEpisodesInSeason }, (_, i) => (
+              <div key={i} className="w-12 text-center text-xs font-medium text-muted-foreground flex-shrink-0">
+                {i + 1}
               </div>
-              
-              {/* Episode squares for this season */}
-              {Array.from({ length: maxEpisodesInSeason }, (_, episodeIndex) => {
-                const episode = episodesBySeason[seasonNum]?.[episodeIndex];
-                
-                if (!episode) {
-                  // Empty cell for seasons with fewer episodes
-                  return (
-                    <div key={episodeIndex} className="w-12 h-12 border border-border/20 rounded-md" />
-                  );
-                }
+            ))}
+          </div>
 
-                return (
-                  <div
-                    key={episode.id}
-                    className={`
-                      w-12 h-12 rounded-md flex items-center justify-center text-xs font-bold
-                      ${getRatingColor(episode.vote_average)}
-                      transition-all duration-200 hover:scale-110 cursor-pointer relative
-                      hover:shadow-lg hover:z-20
-                    `}
-                    style={getRatingBgStyle(episode.vote_average)}
-                    onMouseEnter={() => handleMouseEnter(episode)}
-                    onMouseLeave={handleMouseLeave}
-                  >
-                    {episode.vote_average > 0
-                      ? episode.vote_average.toFixed(1)
-                      : "N/A"}
-                    
-                    {/* Episode name overlay with fade in/out */}
-                    {hoveredEpisode?.id === episode.id && (
-                      <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-card/95 backdrop-blur-sm border border-border/50 rounded-lg px-2 py-1 shadow-xl whitespace-nowrap animate-in fade-in duration-200 z-30">
-                        <div className="text-xs font-medium text-foreground">
-                          {episode.name}
+          {/* Matrix Grid Layout - Rows = Seasons, Columns = Episodes */}
+          <div className="space-y-1">
+            {sortedSeasons.map((seasonNum) => (
+              <div key={seasonNum} className="flex items-center gap-1">
+                {/* Season number */}
+                <div className="w-12 text-center text-sm font-medium text-muted-foreground flex-shrink-0">
+                  {seasonNum}
+                </div>
+                
+                {/* Episode squares for this season */}
+                {Array.from({ length: maxEpisodesInSeason }, (_, episodeIndex) => {
+                  const episode = episodesBySeason[seasonNum]?.[episodeIndex];
+                  
+                  if (!episode) {
+                    // Empty cell for seasons with fewer episodes
+                    return (
+                      <div key={episodeIndex} className="w-12 h-12 border border-border/20 rounded-md flex-shrink-0" />
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={episode.id}
+                      className={`
+                        w-12 h-12 rounded-md flex items-center justify-center text-xs font-bold flex-shrink-0
+                        ${getRatingColor(episode.vote_average)}
+                        transition-all duration-200 hover:scale-110 cursor-pointer relative
+                        hover:shadow-lg hover:z-20
+                      `}
+                      style={getRatingBgStyle(episode.vote_average)}
+                      onMouseEnter={() => handleMouseEnter(episode)}
+                      onMouseLeave={handleMouseLeave}
+                    >
+                      {episode.vote_average > 0
+                        ? episode.vote_average.toFixed(1)
+                        : "N/A"}
+                      
+                      {/* Episode name overlay with fade in/out */}
+                      {hoveredEpisode?.id === episode.id && (
+                        <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-card/95 backdrop-blur-sm border border-border/50 rounded-lg px-2 py-1 shadow-xl whitespace-nowrap animate-in fade-in duration-200 z-30">
+                          <div className="text-xs font-medium text-foreground">
+                            {episode.name}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

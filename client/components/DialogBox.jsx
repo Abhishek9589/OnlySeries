@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { X, Clock, Star, Film, Tv, Calendar, Eye, Check } from "lucide-react";
 import { gsap } from "gsap";
 import EpisodeRatingGrid from "./EpisodeRatingGrid";
-import { getPlatformInfo } from "../lib/streaming";
 
 export default function DialogBox({
   item,
@@ -138,38 +137,6 @@ export default function DialogBox({
                       </button>
                     )}
 
-                    {/* Streaming Platforms */}
-                    {item.streamingPlatforms && item.streamingPlatforms.length > 0 && (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm text-muted-foreground">Available on:</span>
-                        <div className="flex gap-2 flex-wrap">
-                          {item.streamingPlatforms.slice(0, 4).map((platform) => {
-                            const platformInfo = getPlatformInfo(platform);
-                            return platformInfo ? (
-                              <span
-                                key={platform}
-                                className="px-2 py-1 rounded-md text-xs font-medium border"
-                                style={{
-                                  backgroundColor: platformInfo.color + "15",
-                                  borderColor: platformInfo.color + "30",
-                                  color: platformInfo.color
-                                }}
-                              >
-                                {platformInfo.name}
-                              </span>
-                            ) : null;
-                          })}
-                          {item.streamingPlatforms.length > 4 && (
-                            <span
-                              className="px-2 py-1 rounded-md text-xs font-medium bg-muted text-muted-foreground border border-border"
-                              title={`+${item.streamingPlatforms.length - 4} more platforms`}
-                            >
-                              +{item.streamingPlatforms.length - 4} more
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -215,6 +182,12 @@ export default function DialogBox({
                       {formatWatchTime(item.runtime || 120)}
                     </div>
                   </div>
+                </div>
+
+                <div className="bg-gradient-to-r from-primary/10 to-teal/10 rounded-xl p-4 border border-primary/20">
+                  <p className="text-lg text-foreground font-medium">
+                    Total watch time: {formatWatchTime(item.runtime || 120)}
+                  </p>
                 </div>
 
                 {onRemove && (

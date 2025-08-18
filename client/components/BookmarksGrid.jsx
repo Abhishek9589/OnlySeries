@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Clock, Star, Film, Tv, Calendar, Play, Eye, EyeOff, Check } from "lucide-react";
+import { X, Clock, Star, Film, Tv, Calendar, Play, Eye, Check } from "lucide-react";
 import { gsap } from "gsap";
-import { getPlatformInfo } from "../lib/streaming";
 
 export default function BookmarksGrid({
   bookmarks,
@@ -25,13 +24,11 @@ export default function BookmarksGrid({
           {
             scale: 0.8,
             opacity: 0,
-            y: 20,
           },
           {
             scale: 1,
             opacity: 1,
-            y: 0,
-            duration: 0.4,
+            duration: 0.3,
             ease: "power2.out",
           },
         );
@@ -101,27 +98,7 @@ export default function BookmarksGrid({
 
   const handleRemoveClick = (e, id, type) => {
     e.stopPropagation();
-
-    // Animate card removal
-    const cardElement = e.currentTarget.closest('[data-bookmark-card]');
-    if (cardElement) {
-      gsap.to(cardElement, {
-        scale: 0.8,
-        opacity: 0,
-        duration: 0.3,
-        ease: "power2.out",
-        onComplete: () => {
-          onRemoveBookmark(id, type);
-        }
-      });
-    } else {
-      onRemoveBookmark(id, type);
-    }
-  };
-
-  const handleToggleWatchStatus = (e, id, type) => {
-    e.stopPropagation();
-    onToggleWatchStatus(id, type);
+    onRemoveBookmark(id, type);
   };
 
   if (bookmarks.length === 0) {
@@ -140,17 +117,16 @@ export default function BookmarksGrid({
           ([franchise, movies]) => (
             <div
               key={`franchise-${franchise}`}
-              data-bookmark-card
               className="relative group cursor-pointer w-full max-w-[220px]"
               onMouseEnter={() => setHoveredCard(`franchise-${franchise}`)}
               onMouseLeave={() => setHoveredCard(null)}
               onClick={() => onCardClick({ ...movies[0], franchise })}
             >
-              <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-gradient-to-br from-card via-card/90 to-card/80 border border-border/50 shadow-xl transition-all duration-500 ease-out group-hover:scale-105 group-hover:shadow-2xl group-hover:border-primary/30 group-hover:shadow-primary/10">
+              <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-gradient-to-br from-card via-card/90 to-card/80 border border-border/50 shadow-xl transition-all duration-300 group-hover:scale-105 group-hover:shadow-2xl group-hover:border-primary/30">
                 <img
                   src={movies[0].poster}
                   alt={franchise}
-                  className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                 />
 
                 {/* Gradient Overlay for better text visibility */}
@@ -173,14 +149,36 @@ export default function BookmarksGrid({
                 {/* Hover Overlay */}
                 {hoveredCard === `franchise-${franchise}` && (
                   <div className="absolute inset-0 bg-black/80 flex flex-col justify-between p-4 backdrop-blur-sm">
-                    <button
-                      onClick={(e) =>
-                        handleRemoveClick(e, movies[0].id, movies[0].type)
-                      }
-                      className="self-end bg-destructive/90 backdrop-blur-sm text-white rounded-full p-2 hover:bg-destructive transition-colors shadow-lg"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                    <div className="flex justify-between items-start">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleWatchStatus(movies[0].id, movies[0].type);
+                        }}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-all text-xs ${
+                          movies[0].watchStatus === "watched"
+                            ? "bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
+                            : "bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30"
+                        }`}
+                      >
+                        {movies[0].watchStatus === "watched" ? (
+                          <Check className="w-3 h-3" />
+                        ) : (
+                          <Eye className="w-3 h-3" />
+                        )}
+                        <span className="font-medium">
+                          {movies[0].watchStatus === "watched" ? "Watched" : "Will Watch"}
+                        </span>
+                      </button>
+                      <button
+                        onClick={(e) =>
+                          handleRemoveClick(e, movies[0].id, movies[0].type)
+                        }
+                        className="bg-destructive/90 backdrop-blur-sm text-white rounded-full p-2 hover:bg-destructive transition-colors shadow-lg"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
 
                     <div className="text-white space-y-3">
                       <div className="flex items-center gap-2 text-sm">
@@ -212,29 +210,49 @@ export default function BookmarksGrid({
         {groupedBookmarks.individual.map((item) => (
           <div
             key={`${item.type}-${item.id}`}
-            data-bookmark-card
             className="relative group cursor-pointer w-full max-w-[220px]"
             onMouseEnter={() => setHoveredCard(`${item.type}-${item.id}`)}
             onMouseLeave={() => setHoveredCard(null)}
             onClick={() => onCardClick(item)}
           >
-            <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-card/80 backdrop-blur-sm border border-border/30 shadow-xl transition-all duration-500 ease-out group-hover:scale-105 group-hover:shadow-2xl group-hover:border-primary/20 group-hover:shadow-primary/10">
+            <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-card/80 backdrop-blur-sm border border-border/30 shadow-xl transition-all duration-300 group-hover:scale-105 group-hover:shadow-2xl">
               <img
                 src={item.poster}
                 alt={item.title}
-                className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
               />
-
 
               {/* Hover Overlay with specific info for movies vs series */}
               {hoveredCard === `${item.type}-${item.id}` && (
                 <div className="absolute inset-0 bg-black/80 flex flex-col justify-between p-4 backdrop-blur-sm">
-                  <button
-                    onClick={(e) => handleRemoveClick(e, item.id, item.type)}
-                    className="self-end bg-destructive/90 backdrop-blur-sm text-white rounded-full p-2 hover:bg-destructive transition-colors shadow-lg"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  <div className="flex justify-between items-start">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleWatchStatus(item.id, item.type);
+                      }}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-all text-xs ${
+                        item.watchStatus === "watched"
+                          ? "bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
+                          : "bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30"
+                      }`}
+                    >
+                      {item.watchStatus === "watched" ? (
+                        <Check className="w-3 h-3" />
+                      ) : (
+                        <Eye className="w-3 h-3" />
+                      )}
+                      <span className="font-medium">
+                        {item.watchStatus === "watched" ? "Watched" : "Will Watch"}
+                      </span>
+                    </button>
+                    <button
+                      onClick={(e) => handleRemoveClick(e, item.id, item.type)}
+                      className="bg-destructive/90 backdrop-blur-sm text-white rounded-full p-2 hover:bg-destructive transition-colors shadow-lg"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
 
                   <div className="text-white space-y-3">
                     <div className="flex items-center gap-2 text-sm">
@@ -272,7 +290,6 @@ export default function BookmarksGrid({
                         </div>
                       </>
                     )}
-
                   </div>
                 </div>
               )}
