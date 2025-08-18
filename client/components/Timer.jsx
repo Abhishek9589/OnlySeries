@@ -10,7 +10,8 @@ export default function Timer({ bookmarks, watchFilter }) {
     const itemsToCount = bookmarks.filter(item => {
       if (watchFilter === "watched") return item.watchStatus === "watched";
       if (watchFilter === "unwatched") return item.watchStatus !== "watched";
-      return item.watchStatus !== "watched"; // Default: only count unwatched items
+      if (watchFilter === "all") return true; // Count ALL items regardless of status
+      return true; // Default: count all items
     });
 
     const total = itemsToCount.reduce((total, item) => {

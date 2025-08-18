@@ -26,8 +26,39 @@ const SearchBar = memo(function SearchBar({
     };
   };
 
+  // Improved search similarity function
+  const calculateSimilarity = (text, query) => {
+    const textLower = text.toLowerCase().trim();
+    const queryLower = query.toLowerCase().trim();
+
+    // Exact match gets highest score
+    if (textLower === queryLower) return 10;
+
+    // Starts with query gets high score
+    if (textLower.startsWith(queryLower)) return 8;
+
+    // Contains query gets medium score
+    if (textLower.includes(queryLower)) return 6;
+
+    // Check for fuzzy matching (allowing for small differences)
+    const words = queryLower.split(' ').filter(word => word.length > 0);
+    let matchedWords = 0;
+
+    words.forEach(word => {
+      if (textLower.includes(word)) {
+        matchedWords++;
+      }
+    });
+
+    // Score based on how many words matched
+    const wordScore = (matchedWords / words.length) * 4;
+    return wordScore;
+  };
+
   const searchMoviesAndSeries = async (query) => {
-    if (!query.trim() || query.length < 2) {
+    // Trim and normalize the query
+    const normalizedQuery = query.trim();
+    if (!normalizedQuery || normalizedQuery.length < 2) {
       setResults([]);
       setShowResults(false);
       return;
@@ -39,11 +70,11 @@ const SearchBar = memo(function SearchBar({
     try {
       // Search both movies and TV shows in parallel
       const [moviesData, seriesData] = await Promise.all([
-        searchMovies(query).catch((err) => {
+        searchMovies(normalizedQuery).catch((err) => {
           console.error("Movie search error:", err);
           return [];
         }),
-        searchTV(query).catch((err) => {
+        searchTV(normalizedQuery).catch((err) => {
           console.error("TV search error:", err);
           return [];
         }),
@@ -151,24 +182,35 @@ const SearchBar = memo(function SearchBar({
             result.status === "fulfilled" && result.value !== null,
         )
         .map((result) => result.value)
-        .filter((item) => item.imdbRating !== "N/A") // Only show items with valid IMDb ratings
         .filter((item) => {
           const isAlreadyAdded = bookmarks.some(bookmark =>
             Number(bookmark.id) === Number(item.id) && bookmark.type === item.type
           );
           return !isAlreadyAdded;
         }) // Hide already added items
+        .map((item) => ({
+          ...item,
+          similarity: calculateSimilarity(item.title, normalizedQuery),
+          ratingScore: item.imdbRating !== 'N/A' ? parseFloat(item.imdbRating) || 0 : 0
+        }))
+        .filter((item) => item.similarity > 0) // Only show items with some similarity
         .sort((a, b) => {
-          // Prioritize exact matches
-          const aExact = a.title.toLowerCase().includes(query.toLowerCase());
-          const bExact = b.title.toLowerCase().includes(query.toLowerCase());
-          if (aExact && !bExact) return -1;
-          if (!aExact && bExact) return 1;
+          // Primary sort: similarity score (higher = better match)
+          if (a.similarity !== b.similarity) {
+            return b.similarity - a.similarity;
+          }
 
-          // Then sort by type (movies first), then by title
+          // Secondary sort: IMDb rating (higher = better)
+          if (a.ratingScore !== b.ratingScore) {
+            return b.ratingScore - a.ratingScore;
+          }
+
+          // Tertiary sort: type preference (movies first)
           if (a.type !== b.type) {
             return a.type === "movie" ? -1 : 1;
           }
+
+          // Final sort: alphabetical
           return a.title.localeCompare(b.title);
         });
 

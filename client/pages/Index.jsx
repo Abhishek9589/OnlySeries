@@ -202,23 +202,12 @@ export default function Index() {
 
   const handleToggleWatchStatus = (id, type) => {
     setBookmarks((prev) => {
-      // Find the item to toggle
-      const targetItem = prev.find(item => item.id === id && item.type === type);
-      if (!targetItem) return prev;
-
-      const newStatus = targetItem.watchStatus === "watched" ? "unwatched" : "watched";
-
       return prev.map((item) => {
-        // If this is the target item, update it
+        // Only update the specific item that was clicked
         if (item.id === id && item.type === type) {
+          const newStatus = item.watchStatus === "watched" ? "unwatched" : "watched";
           return { ...item, watchStatus: newStatus };
         }
-
-        // If target item has a franchise, update all items in the same franchise
-        if (targetItem.franchise && item.franchise === targetItem.franchise) {
-          return { ...item, watchStatus: newStatus };
-        }
-
         return item;
       });
     });

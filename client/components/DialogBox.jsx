@@ -2,8 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { X, Clock, Star, Film, Tv, Calendar, Eye, Check, EyeOff } from "lucide-react";
 import { gsap } from "gsap";
 import EpisodeRatingGrid from "./EpisodeRatingGrid";
-import StreamingPlatforms from "./StreamingPlatforms";
-import { getStreamingAvailability, getPlatformInfo } from "../lib/streaming";
 
 export default function DialogBox({
   item,
@@ -15,7 +13,6 @@ export default function DialogBox({
 }) {
   const dialogRef = useRef(null);
   const overlayRef = useRef(null);
-  const [streamingPlatforms, setStreamingPlatforms] = useState([]);
 
   useEffect(() => {
     if (isOpen && dialogRef.current && overlayRef.current) {
@@ -33,24 +30,6 @@ export default function DialogBox({
     }
   }, [isOpen]);
 
-  // Fetch streaming platforms when item changes
-  useEffect(() => {
-    if (item && isOpen) {
-      const fetchStreaming = async () => {
-        try {
-          const platforms = await getStreamingAvailability(item.id, item.title, item.type);
-          const platformsWithInfo = platforms.map(platformKey => getPlatformInfo(platformKey)).filter(Boolean);
-          setStreamingPlatforms(platformsWithInfo);
-        } catch (error) {
-          console.error("Error fetching streaming platforms:", error);
-          setStreamingPlatforms([]);
-        }
-      };
-      fetchStreaming();
-    } else {
-      setStreamingPlatforms([]);
-    }
-  }, [item, isOpen]);
 
   const handleClose = () => {
     if (dialogRef.current && overlayRef.current) {
@@ -132,36 +111,28 @@ export default function DialogBox({
                     ) : null}
                   </div>
 
-                  {/* Watch Status Toggle and Streaming Platforms */}
-                  <div className="flex items-center gap-4">
-                    {/* Watch Status Toggle */}
-                    {onToggleWatchStatus && (
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          onToggleWatchStatus(item.id, item.type);
-                        }}
-                        className={`p-2 rounded-lg transition-all ${
-                          item.watchStatus === "watched"
-                            ? "bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
-                            : "bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30"
-                        }`}
-                        title={item.watchStatus === "watched" ? "Watched" : "Will Watch"}
-                      >
-                        {item.watchStatus === "watched" ? (
-                          <EyeOff className="w-5 h-5" />
-                        ) : (
-                          <Eye className="w-5 h-5" />
-                        )}
-                      </button>
-                    )}
-
-                    {/* Streaming Platforms */}
-                    {streamingPlatforms.length > 0 && (
-                      <StreamingPlatforms platforms={streamingPlatforms} />
-                    )}
-                  </div>
+                  {/* Watch Status Toggle */}
+                  {onToggleWatchStatus && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onToggleWatchStatus(item.id, item.type);
+                      }}
+                      className={`p-2 rounded-lg transition-all ${
+                        item.watchStatus === "watched"
+                          ? "bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
+                          : "bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30"
+                      }`}
+                      title={item.watchStatus === "watched" ? "Watched" : "Will Watch"}
+                    >
+                      {item.watchStatus === "watched" ? (
+                        <EyeOff className="w-5 h-5" />
+                      ) : (
+                        <Eye className="w-5 h-5" />
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -208,10 +179,6 @@ export default function DialogBox({
                   </div>
                 </div>
 
-                {/* Streaming Platforms for Movies */}
-                {streamingPlatforms.length > 0 && (
-                  <StreamingPlatforms platforms={streamingPlatforms} />
-                )}
 
                 {onRemove && (
                   <button
@@ -296,10 +263,6 @@ export default function DialogBox({
                 </div>
               </div>
 
-              {/* Streaming Platforms for TV Series */}
-              {streamingPlatforms.length > 0 && (
-                <StreamingPlatforms platforms={streamingPlatforms} />
-              )}
 
               {/* Episode Ratings Grid */}
               <div className="space-y-4">
