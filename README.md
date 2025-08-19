@@ -4,6 +4,16 @@ A beautiful, feature-rich web application for tracking your favorite movies and 
 
 ![App Preview](https://via.placeholder.com/800x400/31363f/76abae?text=Movie+%26+TV+Watchlist+App)
 
+## 🚀 Quick Deploy to Render
+
+This app is ready for immediate deployment to Render:
+
+**Build Command**: `npm install && npm run build`
+**Start Command**: `npm start`
+**Health Check**: `/health`
+
+See [RENDER_DEPLOYMENT.md](./RENDER_DEPLOYMENT.md) for complete deployment guide.
+
 ---
 
 ## 🌟 What This App Does
