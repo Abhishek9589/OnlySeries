@@ -9,89 +9,92 @@
    * A different format will require also updating the theme in tailwind.config.ts.
   */
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Color Palette from uploaded image */
+    --background: 210 17% 13%; /* #22283 - Dark navy */
+    --foreground: 0 0% 93.3%; /* #eeeeee - Light gray */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 210 16% 20%; /* #31363f - Medium gray-blue */
+    --card-foreground: 0 0% 93.3%; /* #eeeeee */
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 210 16% 20%; /* #31363f - Medium gray-blue */
+    --popover-foreground: 0 0% 93.3%; /* #eeeeee */
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 184 25% 57%; /* #76abae - Teal/blue-green */
+    --primary-foreground: 210 17% 13%; /* #22283 - Dark navy */
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 210 16% 20%; /* #31363f - Medium gray-blue */
+    --secondary-foreground: 0 0% 93.3%; /* #eeeeee */
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 210 16% 20%; /* #31363f - Medium gray-blue */
+    --muted-foreground: 0 0% 70%; /* Muted text */
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 184 25% 57%; /* #76abae - Teal accent */
+    --accent-foreground: 210 17% 13%; /* #22283 - Dark navy */
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 210 16% 25%; /* Slightly lighter border */
+    --input: 210 16% 20%; /* #31363f - Medium gray-blue */
+    --ring: 184 25% 57%; /* #76abae - Teal ring */
 
-    --radius: 0.5rem;
+    --radius: 0.75rem; /* Modern rounded corners */
 
-    --sidebar-background: 0 0% 98%;
+    /* Custom colors for the app */
+    --navy: 210 17% 13%; /* #22283 */
+    --gray-blue: 210 16% 20%; /* #31363f */
+    --teal: 184 25% 57%; /* #76abae */
+    --light-gray: 0 0% 93.3%; /* #eeeeee */
 
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Sidebar colors */
+    --sidebar-background: 210 17% 13%;
+    --sidebar-foreground: 0 0% 93.3%;
+    --sidebar-primary: 184 25% 57%;
+    --sidebar-primary-foreground: 210 17% 13%;
+    --sidebar-accent: 210 16% 20%;
+    --sidebar-accent-foreground: 0 0% 93.3%;
+    --sidebar-border: 210 16% 25%;
+    --sidebar-ring: 184 25% 57%;
   }
 
   .dark {
-    --background: 220 25% 2%;
-    --foreground: 210 40% 98%;
+    /* Same colors as root for consistency */
+    --background: 210 17% 13%; /* #22283 - Dark navy */
+    --foreground: 0 0% 93.3%; /* #eeeeee - Light gray */
 
-    --card: 220 20% 4%;
-    --card-foreground: 210 40% 98%;
+    --card: 210 16% 20%; /* #31363f - Medium gray-blue */
+    --card-foreground: 0 0% 93.3%; /* #eeeeee */
 
-    --popover: 220 20% 4%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 210 16% 20%; /* #31363f - Medium gray-blue */
+    --popover-foreground: 0 0% 93.3%; /* #eeeeee */
 
-    --primary: 262 80% 50%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 184 25% 57%; /* #76abae - Teal/blue-green */
+    --primary-foreground: 210 17% 13%; /* #22283 - Dark navy */
 
-    --secondary: 220 15% 8%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 210 16% 20%; /* #31363f - Medium gray-blue */
+    --secondary-foreground: 0 0% 93.3%; /* #eeeeee */
 
-    --muted: 220 15% 8%;
-    --muted-foreground: 220 10% 65%;
+    --muted: 210 16% 20%; /* #31363f - Medium gray-blue */
+    --muted-foreground: 0 0% 70%; /* Muted text */
 
-    --accent: 220 15% 12%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 184 25% 57%; /* #76abae - Teal accent */
+    --accent-foreground: 210 17% 13%; /* #22283 - Dark navy */
 
-    --destructive: 0 70% 50%;
+    --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 220 15% 12%;
-    --input: 220 15% 12%;
-    --ring: 262 80% 50%;
-    --sidebar-background: 220 20% 4%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 262 80% 50%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 220 15% 8%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 220 15% 12%;
-    --sidebar-ring: 262 80% 50%;
+    --border: 210 16% 25%; /* Slightly lighter border */
+    --input: 210 16% 20%; /* #31363f - Medium gray-blue */
+    --ring: 184 25% 57%; /* #76abae - Teal ring */
+
+    --sidebar-background: 210 17% 13%;
+    --sidebar-foreground: 0 0% 93.3%;
+    --sidebar-primary: 184 25% 57%;
+    --sidebar-primary-foreground: 210 17% 13%;
+    --sidebar-accent: 210 16% 20%;
+    --sidebar-accent-foreground: 0 0% 93.3%;
+    --sidebar-border: 210 16% 25%;
+    --sidebar-ring: 184 25% 57%;
   }
 }
 
@@ -102,62 +105,57 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family:
+      "Inter",
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      sans-serif;
   }
 
   html {
+    scroll-behavior: smooth;
+  }
+
+  /* Apply dark theme by default */
+  html {
     @apply dark;
   }
-}
 
-@layer utilities {
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+  /* Custom scrollbar styles to match webapp theme */
+  .custom-scrollbar::-webkit-scrollbar,
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
   }
 
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
+  .custom-scrollbar::-webkit-scrollbar-track,
+  *::-webkit-scrollbar-track {
+    background: hsl(var(--card));
+    border-radius: 4px;
   }
 
-  /* Touch-friendly utilities */
-  .touch-manipulation {
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
+  .custom-scrollbar::-webkit-scrollbar-thumb,
+  *::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary));
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
   }
 
-  .touch-target {
-    min-height: 44px;
-    min-width: 44px;
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover,
+  *::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary)/0.8);
   }
 
-  /* Improved touch feedback */
-  .touch-feedback {
-    transition:
-      transform 0.1s ease-out,
-      background-color 0.1s ease-out;
+  .custom-scrollbar::-webkit-scrollbar-corner,
+  *::-webkit-scrollbar-corner {
+    background: hsl(var(--card));
   }
 
-  .touch-feedback:active {
-    transform: scale(0.97);
-  }
-
-  /* Prevent text selection on touch */
-  .touch-select-none {
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-    -webkit-touch-callout: none;
-  }
-
-  @keyframes fadeInUp {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+  /* Firefox scrollbar styles */
+  .custom-scrollbar,
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary)) hsl(var(--card));
   }
 }

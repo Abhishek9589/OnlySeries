@@ -8,6 +8,10 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    fs: {
+      allow: ["./client", "./shared"],
+      deny: [".env", ".env.*", "*.{crt,pem}", "**/.git/**", "server/**"],
+    },
   },
   build: {
     outDir: "dist/spa",
@@ -15,8 +19,8 @@ export default defineConfig(({ mode }) => ({
   plugins: [react(), expressPlugin()],
   resolve: {
     alias: {
-      "@": path.resolve(import.meta.dirname, "./client"),
-      "@shared": path.resolve(import.meta.dirname, "./shared"),
+      "@": path.resolve(process.cwd(), "./client"),
+      "@shared": path.resolve(process.cwd(), "./shared"),
     },
   },
 }));

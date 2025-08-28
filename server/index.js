@@ -1,12 +1,14 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { handleDemo } from "./routes/demo.js";
 import {
-  searchMulti,
+  searchMovies,
+  searchTV,
   getMovieDetails,
   getTVDetails,
-  getSeasonDetails,
-} from "./routes/tmdb.js";
+  getTVSeason,
+  getIMDbRating,
+} from "./routes/tmdb-proxy.js";
 
 export function createServer() {
   const app = express();
@@ -16,18 +18,25 @@ export function createServer() {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
-  // Example API routes
-  app.get("/api/ping", (_req, res) => {
-    res.json({ message: "Hello from Express server v2!" });
+  // Health check for Render
+  app.get("/health", (_req, res) => {
+    res.status(200).json({ status: "healthy", timestamp: new Date().toISOString() });
   });
 
-  app.get("/api/demo", handleDemo);
+  // Example API routes
+  app.get("/api/ping", (_req, res) => {
+    const ping = process.env.PING_MESSAGE ?? "ping";
+    res.json({ message: ping });
+  });
 
-  // TMDB proxy routes
-  app.get("/api/tmdb/search", searchMulti);
-  app.get("/api/tmdb/movie/:movieId", getMovieDetails);
-  app.get("/api/tmdb/tv/:tvId", getTVDetails);
-  app.get("/api/tmdb/tv/:tvId/season/:seasonNumber", getSeasonDetails);
+
+  // TMDb proxy routes
+  app.get("/api/search/movies", searchMovies);
+  app.get("/api/search/tv", searchTV);
+  app.get("/api/movie/:id", getMovieDetails);
+  app.get("/api/tv/:id", getTVDetails);
+  app.get("/api/tv/:id/season/:season", getTVSeason);
+  app.get("/api/imdb-rating", getIMDbRating);
 
   return app;
 }

@@ -5,7 +5,7 @@ import path from "path";
 export default defineConfig({
   build: {
     lib: {
-      entry: path.resolve(import.meta.dirname, "server/node-build.js"),
+      entry: path.resolve(process.cwd(), "server/node-build.js"),
       name: "server",
       fileName: "production",
       formats: ["es"],
@@ -43,8 +43,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": path.resolve(import.meta.dirname, "./client"),
-      "@shared": path.resolve(import.meta.dirname, "./shared"),
+      "@": path.resolve(process.cwd(), "./client"),
+      "@shared": path.resolve(process.cwd(), "./shared"),
     },
   },
   define: {

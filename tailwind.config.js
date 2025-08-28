@@ -12,6 +12,10 @@ export default {
     },
     extend: {
       colors: {
+        navy: "#22283",
+        "gray-blue": "#31363f",
+        teal: "#76abae",
+        "light-gray": "#eeeeee",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -54,10 +58,6 @@ export default {
           "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
-        },
-        brand: {
-          purple: "#8b5cf6",
-          cyan: "#06b6d4",
         },
       },
       borderRadius: {
