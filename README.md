@@ -1,306 +1,133 @@
-# 🎬 Movie & TV Watchlist App
+# onlyseries.towatch
 
-A beautiful, feature-rich web application for tracking your favorite movies and TV series. Never forget what you want to watch next!
+A fast, client-first web app to search, bookmark, group, and track movies/TV shows. Includes manual franchise grouping, pagination with jump-to-page, rich search with 10 fast recommendations, watch-status filtering, sorting, a watch-time timer, and JSON import/export.
 
-![App Preview](https://via.placeholder.com/800x400/31363f/76abae?text=Movie+%26+TV+Watchlist+App)
+## Features
+- Bookmarks: Add movies/TV from TMDB search; deduped; persisted to localStorage
+- Manual franchises: Multi-select movies, name/create or add to existing franchise; grouped cards with hover actions
+- Pagination: 36 cards per page, page input, Previous/Next, controls shown above and below grid
+- Sorting: A → Z, Z → A, Time added (First → Last / Last → First); applies to franchises and individual items
+- Watch status: Toggle Watched / Will Watch; filter by all/watched/unwatched
+- Search: Up to 10 instant recommendations (limits expensive calls for speed); offline-aware UX
+- Timer: Aggregated watch time (Year:Day:Hr:Min) with counts of movies and series
+- Import/Export: Download current library to JSON (includes franchise, watchStatus, addedAt, etc). Upload restores these
+- Responsive UI: Desktop, tablet, mobile; sticky scroll-to-top button
 
-## 🚀 Quick Deploy to Render
+## Tech Stack
+- React 18 + Vite (dev/build)
+- Tailwind CSS + Radix primitives + lucide-react icons
+- Express API (server) with TMDB + OMDb proxy and key rotation
+- GSAP for small entrance animations
 
-This app is ready for immediate deployment to Render:
+## Scripts
+- dev: vite (client dev server)
+- build: vite build (client) + vite build --config vite.config.server.js (server)
+- start: node dist/server/node-build.mjs (serve built app + API)
+- test: vitest --run
 
-**Build Command**: `npm install && npm run build`
-**Start Command**: `npm start`
-**Health Check**: `/health`
+Use npm:
+- npm install
+- npm run dev (client dev)
+- npm run build && npm start (full production build + server)
 
-See [RENDER_DEPLOYMENT.md](./RENDER_DEPLOYMENT.md) for complete deployment guide.
+## Environment Variables (server)
+Create a .env (not committed) for server builds:
+- TMDB_API_KEY=your_tmdb_key
+- OMDB_API_KEYS=key1,key2,key3  (comma-separated; automatic failover)
 
----
+## Data Model (localStorage)
+Key: onlyseries-bookmarks
+Each item:
+- id: number (TMDB id)
+- type: "movie" | "tv"
+- title, year, poster
+- imdbRating: string (e.g. "7.9" or "N/A")
+- runtime (movies), seasons/episodes (tv)
+- watchStatus: "watched" | "unwatched"
+- franchise: string | undefined (manual grouping label)
+- addedAt: number (ms timestamp used for sorting)
 
-## 🌟 What This App Does
-
-This is your personal digital watchlist manager - think of it like a smart notebook for all the movies and TV shows you want to watch or have already watched. Instead of keeping mental notes or scattered lists, this app helps you organize everything in one beautiful, easy-to-use place.
-
-### 🎯 Perfect For:
-- **Movie Enthusiasts** who discover new films faster than they can watch them
-- **TV Show Binge-Watchers** who need to track multiple series
-- **Families** wanting to keep a shared list of entertainment options
-- **Anyone** who's ever forgotten that "great movie someone recommended"
-
----
-
-## ✨ Key Features
-
-### 🔍 **Smart Search**
-- Search for any movie or TV show by name
-- Get real-time results with beautiful posters and details
-- See ratings, release dates, and descriptions instantly
-- Powered by The Movie Database (TMDb) - the same data used by major streaming platforms
-
-### 📚 **Personal Watchlist**
-- Save movies and TV shows to your personal collection
-- Mark items as "watched" or "unwatched"
-- Beautiful grid layout with high-quality posters
-- Dynamic background that changes based on your latest addition
-
-### ⏱️ **Smart Time Calculator**
-- See exactly how much time you'll need to watch everything
-- Separate counters for movies and TV series
-- Calculates based on actual movie runtimes and episode counts
-- Filter by watched/unwatched status
-
-### 🎨 **Beautiful Design**
-- Modern, dark theme that's easy on the eyes
-- Smooth animations and transitions
-- Responsive design that works on phones, tablets, and computers
-- Professional-grade user interface
-
-### 💾 **Data Management**
-- Export your entire watchlist as a file
-- Import watchlists from other devices
-- All data stored safely in your browser
-- No account required - complete privacy
-
-### 🔄 **Smart Filtering**
-- View all items, only watched, or only unwatched
-- Easy toggle between different views
-- Quick overview of your watching progress
+Exported JSON from Download Bookmarks contains the current state as above. Import preserves franchise and watchStatus; addedAt is backfilled if missing.
 
 ---
 
-## 🚀 How to Use the App
+# Project Documentation (file-by-file)
 
-### Getting Started
-1. **Open the app** in your web browser
-2. **Search for content** using the search bar at the top
-3. **Click on any result** to add it to your watchlist
-4. **Start building your collection!**
+This section walks through the codebase so a newcomer can understand what each file does and how pieces fit together.
 
-### Adding Content
-1. Type a movie or TV show name in the search box
-2. Browse through the results that appear
-3. Click on the item you want to add
-4. It's automatically saved to your watchlist!
+## Root
+- package.json: Project metadata and scripts. Notable scripts: dev (client dev with Vite), build (client+server), start (runs built server). Dependencies include React, Tailwind, Express, dotenv, GSAP, Radix, lucide-react.
+- vite.config.js: Vite config for the client build/dev server.
+- vite.config.server.js: Vite config for bundling the Express server (SSR/API bundle in dist/server/).
+- tailwind.config.js: Tailwind theme and content scanning (client/**/*.{js,jsx}); custom colors, animations, and CSS variables.
+- postcss.config.js: Tailwind + autoprefixer config for CSS processing.
+- index.html: Vite entry HTML mounting the React app.
+- components.json: Radix UI/shadcn component settings (used for consistent styles).
 
-### Managing Your Watchlist
-- **Mark as watched**: Click the eye icon on any item
-- **Remove items**: Click the X button to delete from your list
-- **View details**: Click on any poster to see full information
-- **Filter content**: Use the filter dropdown to show watched/unwatched items
+## server/
+- index.js: Express app with CORS and JSON; mounts routes from routes/tmdb-proxy.js; exposes endpoints used by the client:
+  - GET /api/imdb-rating?title=...&year=...
+  - GET /api/tv/:id/season/:season
+- routes/tmdb-proxy.js: Implements TMDB and OMDb proxy logic.
+  - getTVSeason: Fetches TMDB season details by tv id and season number.
+  - getIMDbRating: Queries OMDb with automatic key rotation and basic error handling; returns { imdbRating, imdbID }.
+- node-build.js: Helper for node build output (entry used by start script after build).
 
-### Time Tracking
-The timer at the top shows:
-- **Total time needed** to watch everything in your current filter
-- **Number of movies** and **TV series** in your list
-- **Real-time updates** as you add or remove content
+## client/
+### App & Pages
+- App.jsx: Root React component composition (mount point for pages).
+- pages/Index.jsx: Main page orchestrating the app. Responsibilities:
+  - Loads/saves bookmarks to localStorage (key: onlyseries-bookmarks)
+  - Migration helpers (e.g., backfill addedAt)
+  - UI controls (filter, sort, import/export, share)
+  - Franchise selection mode and naming dialog
+  - Renders SearchBar, Timer, BookmarksGrid, DialogBox, OfflineBanner, ScrollToTop
+- pages/NotFound.jsx: Fallback page for unknown routes.
 
-### Backup & Sharing
-- **Export**: Download your watchlist as a file
-- **Import**: Upload a previously saved watchlist
-- **Share**: Send your watchlist file to friends or family
+### Components (client/components)
+- SearchBar.jsx: Debounced TMDB search UI. Shows up to 10 fast recommendations (limits extra API calls to keep it fast). Fetches details/ratings for first ~7; others are lightweight. Hides items already in bookmarks. Calls onAddBookmark when an item is clicked.
+- Timer.jsx: Aggregates total watch time over filtered bookmarks; displays as Yr:Day:Hr:Min plus counts for movies/series.
+- BookmarksGrid.jsx: Displays cards (franchises + individual items), 36 per page with page input and prev/next on top and bottom. Supports selectionMode for grouping; hover actions include toggle watch status and remove.
+- DialogBox.jsx: Details dialog for a selected item (and franchise aggregates if applicable).
+- OfflineBanner.jsx: Warns when offline for search.
+- FallbackImage.jsx: Robust image component with graceful fallback styling.
+- StreamingPlatforms.jsx, EpisodeRatingGrid.jsx, SearchBar.jsx, etc.: Feature-specific UI.
+- ScrollToTop.jsx: Sticky bottom-right button to smooth scroll to top when user has scrolled down.
 
----
+#### UI primitives (client/components/ui)
+- button.jsx, dropdown-menu.jsx, toast.jsx, toaster.jsx, tooltip.jsx, sonner.jsx: Small UI primitives/wrappers (Radix/shadcn patterns) used across the app.
 
-## 📱 Device Compatibility
+### Hooks (client/hooks)
+- use-offline.js: React hook that returns online/offline status (drives OfflineBanner and search behavior).
+- use-mobile.jsx: Media-query helper for mobile detection.
+- use-toast.js: Toast/sonner integration hook.
 
-### ✅ Works On:
-- **Desktop Computers** (Windows, Mac, Linux)
-- **Tablets** (iPad, Android tablets)
-- **Smartphones** (iPhone, Android)
-- **Smart TVs** with web browsers
-- **Any device** with a modern web browser
+### lib (client/lib)
+- api.js: Client-side API helpers that call the Express proxy endpoints (TMDB and OMDb).
+- streaming.js: Helper utilities for streaming platform data (if present in your flows).
+- utils.js: General-purpose utilities used across components.
 
-### 🌐 Browser Support:
-- Chrome, Firefox, Safari, Edge
-- No plugins or downloads required
-- Works completely in your web browser
+### Styles
+- global.css: Tailwind layers and CSS variables; applies dark theme and custom scrollbar; sets CSS variables used by tailwind.config.js.
 
----
+## public/
+- robots.txt: Basic robots directives.
 
-## 🔒 Privacy & Data
+## Data Flow Summary
+1) User searches in SearchBar → TMDB results are fetched (movies + TV) → up to 10 suggestions built (first ~7 with details/IMDb rating). Offline state shows a friendly message.
+2) Clicking a result calls onAddBookmark → Index.jsx adds a normalized item into localStorage with fields (type, id, title, poster, year, imdbRating, runtime/seasons/episodes, watchStatus, franchise?, addedAt).
+3) Index.jsx renders BookmarksGrid with current filter/sort, selectionMode flags, and callbacks.
+4) Grouping to franchise: enter selection mode → pick movies → "Group as Franchise" → choose existing or type a name in dialog → selected movies get franchise set to that name. Franchises display as single cards summarizing grouped items.
+5) Export: Download Bookmarks creates a JSON file of exactly what’s in localStorage (including franchise, watchStatus, addedAt). Import: Restores that data (adds addedAt if missing).
 
-### Your Data is Safe:
-- **No accounts required** - use immediately
-- **No personal information collected**
-- **All data stored locally** on your device
-- **No tracking or analytics**
-- **Complete privacy** - your watchlist stays private
+## Conventions & Gotchas
+- addedAt is a numeric timestamp used for time-based sorting; it’s applied on add/import if missing.
+- imdbRating can be "N/A" if OMDb rate limits are hit; free key quotas reset daily (UTC).
+- 36 items per page; input lets you jump to any page; prev/next are disabled at bounds.
+- Sorting applies to both franchises (by name or min/max addedAt) and individuals; a unified sort merges them into a single list.
+- CSS: Utility classes via Tailwind; custom theme variables in global.css.
 
-### Data Storage:
-- Uses your browser's local storage
-- Data persists between sessions
-- Can export/import for backup
-- No data sent to external servers (except for movie information lookup)
-
----
-
-## 🛠️ Technical Details
-
-### For Developers and Tech-Savvy Users:
-
-#### **Technology Stack:**
-- **Frontend**: React 18 with modern JavaScript
-- **Styling**: TailwindCSS with custom dark theme
-- **Animation**: GSAP for smooth transitions
-- **Build Tool**: Vite for fast development and building
-- **Backend**: Express.js server for API handling
-- **Data Source**: The Movie Database (TMDb) API
-
-#### **Architecture:**
-- **Single Page Application (SPA)** for smooth navigation
-- **Full-stack JavaScript** application
-- **RESTful API** design for data fetching
-- **Component-based architecture** for maintainability
-- **Responsive design** with mobile-first approach
-
-#### **Key Components:**
-- `SearchBar` - Intelligent search with debouncing and similarity matching
-- `BookmarksGrid` - Animated grid layout for watchlist items
-- `Timer` - Real-time calculation of total watch time
-- `DialogBox` - Detailed information display for movies/TV shows
-- `StreamingPlatforms` - Shows where content is available to watch
-
-#### **APIs Used:**
-- **TMDb API** - Movie and TV show data, posters, ratings
-- **OMDb API** - Additional IMDb ratings and details
-- **Multiple API keys** for reliability and rate limit handling
-
----
-
-## 🚀 Installation & Setup
-
-### For Regular Users:
-**No installation needed!** The app runs directly in your web browser.
-
-### For Developers:
-
-#### **Prerequisites:**
-- Node.js (version 18 or higher)
-- npm (comes with Node.js)
-
-#### **Quick Start:**
-```bash
-# Clone the repository
-git clone <repository-url>
-
-# Navigate to project directory
-cd movie-watchlist-app
-
-# Install dependencies
-npm install
-
-# Start the development server
-npm run dev
-
-# Open your browser to http://localhost:8080
-```
-
-#### **Available Scripts:**
-```bash
-npm run dev        # Start development server
-npm run build      # Build for production
-npm start          # Start production server
-npm test           # Run tests
-```
-
-#### **Environment Setup:**
-Create a `.env` file with your API keys:
-```
-TMDB_API_KEY=your_tmdb_api_key_here
-OMDB_API_KEY=your_omdb_api_key_here
-```
-
----
-
-## 🌐 Deployment Options
-
-### **For Hosting the App:**
-
-#### **Option 1: Vercel (Recommended)**
-- Perfect for full-stack applications
-- Automatic deployments from git
-- Free tier available
-- Excellent performance
-
-#### **Option 2: Render**
-- Simple full-stack deployment
-- Can run both frontend and backend
-- Easy environment variable management
-- Good for production use
-
-#### **Option 3: Netlify**
-- Great for static deployments
-- Simple drag-and-drop deployment
-- Good for frontend-only versions
-
----
-
-## 📊 Project Statistics
-
-- **Languages**: JavaScript, CSS, HTML
-- **Total Components**: 15+ React components
-- **UI Elements**: 25+ reusable UI components
-- **API Endpoints**: 6 custom endpoints
-- **Dependencies**: 50+ carefully selected packages
-- **File Size**: ~2MB total application size
-- **Performance**: Optimized for speed and responsiveness
-
----
-
-## 🤝 Contributing
-
-### How to Help Improve the App:
-
-1. **Report Bugs**: Found something that doesn't work? Let us know!
-2. **Suggest Features**: Have ideas for new features? Share them!
-3. **Code Contributions**: Developers can submit pull requests
-4. **Testing**: Help test on different devices and browsers
-5. **Documentation**: Help improve this README or add tutorials
-
-### **Development Process:**
-```bash
-# Fork the repository
-# Create a feature branch
-git checkout -b feature/amazing-new-feature
-
-# Make your changes
-# Test thoroughly
-npm test
-
-# Build to ensure everything works
-npm run build
-
-# Submit a pull request
-```
-
----
-
-## 📞 Support & Help
-
-### **Having Issues?**
-1. **Check this README** for common solutions
-2. **Try refreshing** your browser
-3. **Clear browser cache** if experiencing loading issues
-4. **Check your internet connection** for search functionality
-
-### **Technical Support:**
-- Create an issue in the project repository
-- Include your browser type and version
-- Describe the steps to reproduce any problems
-
----
-
-## 📜 License
-
-This project is open source and available under the MIT License. Feel free to use, modify, and distribute as you see fit.
-
----
-
-## 🎉 Enjoy Your Movie Nights!
-
-This app was built with love for fellow movie and TV enthusiasts. Whether you're planning a movie marathon, keeping track of the latest Netflix series, or just organizing your entertainment wishlist, we hope this app makes your viewing experience even better!
-
-**Happy Watching! 🍿📺**
-
----
-
-*Last updated: 2025*
+## How to Extend
+- Add new fields to bookmark items by updating where items are created (SearchBar → onAddBookmark in Index.jsx) and ensuring export/import reflect changes automatically via localStorage serialization.
+- Add more sort options by extending BookmarksGrid’s sortType handling and the sort dropdown in Index.jsx.
+- Add server endpoints in server/routes and expose them in server/index.js; call them via client/lib/api.js.

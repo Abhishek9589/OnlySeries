@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { Download, Upload, ArrowDown, ArrowUp, Filter, Share2, Eye, EyeOff } from "lucide-react";
+import { Download, Upload, ArrowDown, ArrowUp, Filter, Share2, Eye, EyeOff, ArrowUpDown } from "lucide-react";
 import SearchBar from "../components/SearchBar";
 import Timer from "../components/Timer";
 import BookmarksGrid from "../components/BookmarksGrid";
 import DialogBox from "../components/DialogBox";
 import OfflineBanner from "../components/OfflineBanner";
+import ScrollToTop from "../components/ScrollToTop";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,16 +20,42 @@ export default function Index() {
   const [backgroundImage, setBackgroundImage] = useState("");
   const [watchFilter, setWatchFilter] = useState("all"); // "all", "watched", "unwatched"
   const [shareToast, setShareToast] = useState(false);
+  const [sortType, setSortType] = useState("time_desc");
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedKeys, setSelectedKeys] = useState([]);
+  const [showFranchiseDialog, setShowFranchiseDialog] = useState(false);
+  const [franchiseName, setFranchiseName] = useState("");
 
   // Load bookmarks from localStorage on mount
   useEffect(() => {
     const savedBookmarks = localStorage.getItem("onlyseries-bookmarks");
+    const migratedFlag = localStorage.getItem("onlyseries-franchise-migrated-v1");
     if (savedBookmarks) {
       const parsed = JSON.parse(savedBookmarks);
-      setBookmarks(parsed);
-      // Set background to the most recently added item
-      if (parsed.length > 0) {
-        setBackgroundImage(parsed[parsed.length - 1].poster);
+      if (!migratedFlag) {
+        const cleared = Array.isArray(parsed)
+          ? parsed.map((it, i) => ({
+              ...it,
+              franchise: undefined,
+              addedAt: it.addedAt ?? (Date.now() - (parsed.length - i)),
+            }))
+          : [];
+        setBookmarks(cleared);
+        localStorage.setItem("onlyseries-franchise-migrated-v1", "true");
+        if (cleared.length > 0) {
+          setBackgroundImage(cleared[cleared.length - 1].poster);
+        }
+      } else {
+        const withAdded = Array.isArray(parsed)
+          ? parsed.map((it, i) => ({
+              ...it,
+              addedAt: it.addedAt ?? (Date.now() - (parsed.length - i)),
+            }))
+          : [];
+        setBookmarks(withAdded);
+        if (withAdded.length > 0) {
+          setBackgroundImage(withAdded[withAdded.length - 1].poster);
+        }
       }
     }
   }, []);
@@ -44,129 +71,8 @@ export default function Index() {
     }
   }, [bookmarks]);
 
-  // Enhanced franchise detection for movie sequels
-  const detectFranchise = (title) => {
-    // Remove common sequel indicators and clean title
-    const cleanTitle = title
-      .replace(/\s+(Part\s+)?\d+$/i, "") // Remove "Part 1", "2", etc at end
-      .replace(/\s+\d+$/i, "") // Remove numbers at end
-      .replace(/\s+(I{1,3}|IV|V|VI|VII|VIII|IX|X)$/i, "") // Remove Roman numerals
-      .replace(/:\s*.*$/i, "") // Remove subtitle after colon
-      .trim();
-
-    const franchises = [
-      // Marvel Universe
-      { names: ["Iron Man"], franchise: "Iron Man" },
-      { names: ["Thor"], franchise: "Thor" },
-      { names: ["Captain America"], franchise: "Captain America" },
-      { names: ["Avengers"], franchise: "Avengers" },
-      { names: ["Spider-Man", "Spiderman"], franchise: "Spider-Man" },
-      { names: ["X-Men"], franchise: "X-Men" },
-      {
-        names: ["Guardians of the Galaxy"],
-        franchise: "Guardians of the Galaxy",
-      },
-      { names: ["Ant-Man"], franchise: "Ant-Man" },
-      { names: ["Doctor Strange"], franchise: "Doctor Strange" },
-      { names: ["Black Panther"], franchise: "Black Panther" },
-      { names: ["Captain Marvel"], franchise: "Captain Marvel" },
-
-      // DC Universe
-      { names: ["Batman"], franchise: "Batman" },
-      { names: ["Superman"], franchise: "Superman" },
-      { names: ["Wonder Woman"], franchise: "Wonder Woman" },
-      { names: ["Justice League"], franchise: "Justice League" },
-      { names: ["Aquaman"], franchise: "Aquaman" },
-      { names: ["The Flash"], franchise: "The Flash" },
-
-      // Star Wars
-      { names: ["Star Wars"], franchise: "Star Wars" },
-
-      // Harry Potter
-      { names: ["Harry Potter"], franchise: "Harry Potter" },
-      { names: ["Fantastic Beasts"], franchise: "Wizarding World" },
-
-      // Lord of the Rings
-      {
-        names: ["The Lord of the Rings", "Lord of the Rings"],
-        franchise: "Lord of the Rings",
-      },
-      { names: ["The Hobbit"], franchise: "Middle-earth" },
-
-      // Action Franchises
-      {
-        names: ["Fast & Furious", "Fast and Furious", "The Fast"],
-        franchise: "Fast & Furious",
-      },
-      { names: ["John Wick"], franchise: "John Wick" },
-      {
-        names: ["Mission: Impossible", "Mission Impossible"],
-        franchise: "Mission: Impossible",
-      },
-      { names: ["Transformers"], franchise: "Transformers" },
-      { names: ["The Matrix"], franchise: "The Matrix" },
-      { names: ["Terminator"], franchise: "Terminator" },
-      { names: ["Die Hard"], franchise: "Die Hard" },
-      { names: ["James Bond", "007"], franchise: "James Bond" },
-
-      // Horror
-      { names: ["Halloween"], franchise: "Halloween" },
-      { names: ["Friday the 13th"], franchise: "Friday the 13th" },
-      {
-        names: ["A Nightmare on Elm Street", "Nightmare on Elm Street"],
-        franchise: "Nightmare on Elm Street",
-      },
-      { names: ["Saw"], franchise: "Saw" },
-      { names: ["Scream"], franchise: "Scream" },
-
-      // Sci-Fi
-      { names: ["Alien"], franchise: "Alien" },
-      { names: ["Predator"], franchise: "Predator" },
-      { names: ["Jurassic Park", "Jurassic World"], franchise: "Jurassic" },
-      { names: ["Planet of the Apes"], franchise: "Planet of the Apes" },
-
-      // Comedy
-      { names: ["Shrek"], franchise: "Shrek" },
-      { names: ["Ice Age"], franchise: "Ice Age" },
-      { names: ["Toy Story"], franchise: "Toy Story" },
-      { names: ["Cars"], franchise: "Cars" },
-      { names: ["Madagascar"], franchise: "Madagascar" },
-
-      // Other Popular
-      {
-        names: ["Pirates of the Caribbean"],
-        franchise: "Pirates of the Caribbean",
-      },
-      { names: ["Indiana Jones"], franchise: "Indiana Jones" },
-      { names: ["Rocky"], franchise: "Rocky" },
-      { names: ["Rambo"], franchise: "Rambo" },
-      { names: ["The Godfather"], franchise: "The Godfather" },
-      { names: ["Back to the Future"], franchise: "Back to the Future" },
-    ];
-
-    const titleLower = title.toLowerCase();
-    const cleanTitleLower = cleanTitle.toLowerCase();
-
-    for (const { names, franchise } of franchises) {
-      for (const name of names) {
-        const nameLower = name.toLowerCase();
-        // Check both original title and cleaned title
-        if (
-          titleLower.includes(nameLower) ||
-          cleanTitleLower === nameLower ||
-          cleanTitleLower.includes(nameLower)
-        ) {
-          return franchise;
-        }
-      }
-    }
-    return undefined;
-  };
 
   const handleAddBookmark = (item) => {
-    const franchise =
-      item.type === "movie" ? detectFranchise(item.title) : undefined;
-
     // Check if item already exists
     const exists = bookmarks.some(
       (bookmark) => bookmark.id === item.id && bookmark.type === item.type,
@@ -174,22 +80,12 @@ export default function Index() {
 
     if (!exists) {
       setBookmarks((prev) => {
-        // Check if this item belongs to an existing franchise and inherit watch status
-        let inheritedWatchStatus = "unwatched"; // default
-
-        if (franchise) {
-          const existingFranchiseItem = prev.find(bookmark => bookmark.franchise === franchise);
-          if (existingFranchiseItem) {
-            inheritedWatchStatus = existingFranchiseItem.watchStatus || "unwatched";
-          }
-        }
-
         const newItem = {
           ...item,
-          franchise,
-          watchStatus: inheritedWatchStatus
+          franchise: undefined,
+          watchStatus: "unwatched",
+          addedAt: Date.now(),
         };
-
         return [...prev, newItem];
       });
     }
@@ -238,7 +134,12 @@ export default function Index() {
         try {
           const uploaded = JSON.parse(e.target?.result);
           if (Array.isArray(uploaded)) {
-            setBookmarks(uploaded);
+            const base = Date.now() - uploaded.length;
+            const normalized = uploaded.map((it, i) => ({
+              ...it,
+              addedAt: it.addedAt ?? (base + i),
+            }));
+            setBookmarks(normalized);
           }
         } catch (error) {
           console.error("Error parsing uploaded file:", error);
@@ -290,17 +191,17 @@ export default function Index() {
           )}
 
           {/* Import/Export and Filter Controls - Fixed position */}
-          <div className="fixed top-6 right-6 z-50 flex gap-2">
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 md:top-6 md:right-6 md:left-auto md:translate-x-0 z-50 flex gap-2 flex-wrap justify-center">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className={`p-3 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50 relative ${
+                  className={`p-2 md:p-3 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50 relative ${
                     watchFilter === "all" ? "bg-card/80" :
                     watchFilter === "watched" ? "bg-green-500/80" : "bg-blue-500/80"
                   }`}
                   title="Filter watchlist"
                 >
-                  <Filter className="w-5 h-5" />
+                  <Filter className="w-4 h-4 md:w-5 md:h-5" />
                   {watchFilter !== "all" && (
                     <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-primary"></div>
                   )}
@@ -330,30 +231,56 @@ export default function Index() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="p-2 md:p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50"
+                  title="Sort"
+                >
+                  <ArrowUpDown className="w-4 h-4 md:w-5 md:h-5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onClick={() => setSortType("alpha_asc")} className={sortType === "alpha_asc" ? "bg-accent" : ""}>
+                  A → Z (Title)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSortType("alpha_desc")} className={sortType === "alpha_desc" ? "bg-accent" : ""}>
+                  Z → A (Title)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSortType("time_asc")} className={sortType === "time_asc" ? "bg-accent" : ""}>
+                  Time added: First → Last
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSortType("time_desc")} className={sortType === "time_desc" ? "bg-accent" : ""}>
+                  Time added: Last → First
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <button
               onClick={() => {
                 navigator.clipboard.writeText(window.location.href);
                 setShareToast(true);
                 setTimeout(() => setShareToast(false), 3000);
               }}
-              className="p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50"
+              className="p-2 md:p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50"
               title="Share Website"
             >
-              <Share2 className="w-5 h-5" />
+              <Share2 className="w-4 h-4 md:w-5 md:h-5" />
             </button>
             <button
               onClick={downloadBookmarks}
               disabled={!hasBookmarks}
-              className="p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg border border-border/50"
+              className="p-2 md:p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg border border-border/50"
               title="Download Bookmarks"
             >
-              <ArrowDown className="w-5 h-5" />
+              <ArrowDown className="w-4 h-4 md:w-5 md:h-5" />
             </button>
             <label
-              className="p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors cursor-pointer shadow-lg border border-border/50"
+              className="p-2 md:p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors cursor-pointer shadow-lg border border-border/50"
               title="Upload Bookmarks"
             >
-              <ArrowUp className="w-5 h-5" />
+              <ArrowUp className="w-4 h-4 md:w-5 md:h-5" />
               <input
                 type="file"
                 accept=".json"
@@ -375,15 +302,70 @@ export default function Index() {
             </div>
           )}
 
+          {/* Franchise Builder Controls */}
+          {hasBookmarks && (
+            <div className="mb-6 px-4 flex items-center gap-2 sm:gap-3 justify-center flex-wrap">
+              {!selectionMode ? (
+                <button
+                  onClick={() => {
+                    setSelectionMode(true);
+                    setSelectedKeys([]);
+                  }}
+                  className="px-4 py-2 rounded-md bg-card border border-border text-foreground hover:bg-card/80 transition-colors"
+                >
+                  Select Movies
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      setSelectionMode(false);
+                      setSelectedKeys([]);
+                    }}
+                    className="px-4 py-2 rounded-md bg-card border border-border text-foreground hover:bg-card/80 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => setSelectedKeys([])}
+                    className="px-4 py-2 rounded-md bg-card border border-border text-foreground hover:bg-card/80 transition-colors"
+                  >
+                    Clear Selection
+                  </button>
+                  <button
+                    disabled={selectedKeys.length < 1}
+                    onClick={() => setShowFranchiseDialog(true)}
+                    className="px-4 py-2 rounded-md bg-primary text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={selectedKeys.length < 1 ? "Select at least 1 movie" : "Create or add to franchise"}
+                  >
+                    Group as Franchise
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Bookmarks Grid - Center-aligned */}
           {hasBookmarks ? (
             <div className="flex justify-center">
               <div className="max-w-7xl w-full">
                 <BookmarksGrid
                   bookmarks={filteredBookmarks}
+                  sortType={sortType}
                   onRemoveBookmark={handleRemoveBookmark}
                   onCardClick={handleCardClick}
                   onToggleWatchStatus={handleToggleWatchStatus}
+                  selectionMode={selectionMode}
+                  selectedKeys={selectedKeys}
+                  onToggleSelect={(item) => {
+                    if (item.type !== "movie") return;
+                    const key = `${item.type}-${item.id}`;
+                    setSelectedKeys((prev) =>
+                      prev.includes(key)
+                        ? prev.filter((k) => k !== key)
+                        : [...prev, key]
+                    );
+                  }}
                 />
               </div>
             </div>
@@ -416,6 +398,94 @@ export default function Index() {
           </div>
         </div>
       )}
+
+      {/* Franchise Name Dialog */}
+      {showFranchiseDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowFranchiseDialog(false)} />
+          <div className="relative w-full max-w-md bg-card/95 backdrop-blur-md border border-border/50 rounded-2xl p-6 shadow-2xl">
+            <h3 className="text-lg font-semibold mb-3 text-foreground">Name the Franchise</h3>
+            <p className="text-sm text-muted-foreground mb-4">Enter a name or choose an existing franchise.</p>
+
+            {/* Existing Franchises */}
+            {Array.from(new Set(bookmarks.filter(b => b.type === "movie" && b.franchise).map(b => b.franchise))).length > 0 && (
+              <div className="mb-4">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Existing</div>
+                <div className="flex flex-wrap gap-2">
+                  {Array.from(new Set(bookmarks.filter(b => b.type === "movie" && b.franchise).map(b => b.franchise))).map((name) => (
+                    <button
+                      key={name}
+                      onClick={() => setFranchiseName(name)}
+                      className={`px-2.5 py-1 rounded-full border text-sm ${franchiseName === name ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-foreground hover:bg-card/80"}`}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <input
+              value={franchiseName}
+              onChange={(e) => setFranchiseName(e.target.value)}
+              placeholder="Franchise name"
+              className="w-full mb-4 px-3 py-2 rounded-md bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const name = franchiseName.trim();
+                  if (!name) return;
+                  setBookmarks((prev) =>
+                    prev.map((it) => {
+                      const key = `${it.type}-${it.id}`;
+                      if (it.type === "movie" && selectedKeys.includes(key)) {
+                        return { ...it, franchise: name };
+                      }
+                      return it;
+                    })
+                  );
+                  setFranchiseName("");
+                  setSelectedKeys([]);
+                  setSelectionMode(false);
+                  setShowFranchiseDialog(false);
+                }
+              }}
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowFranchiseDialog(false);
+                }}
+                className="px-4 py-2 rounded-md bg-card border border-border text-foreground hover:bg-card/80 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const name = franchiseName.trim();
+                  if (!name) return;
+                  setBookmarks((prev) =>
+                    prev.map((it) => {
+                      const key = `${it.type}-${it.id}`;
+                      if (it.type === "movie" && selectedKeys.includes(key)) {
+                        return { ...it, franchise: name };
+                      }
+                      return it;
+                    })
+                  );
+                  setFranchiseName("");
+                  setSelectedKeys([]);
+                  setSelectionMode(false);
+                  setShowFranchiseDialog(false);
+                }}
+                className="px-4 py-2 rounded-md bg-primary text-primary-foreground"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <ScrollToTop />
     </div>
   );
 }
