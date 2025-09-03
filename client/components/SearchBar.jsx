@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, memo } from "react";
+import { useState, useEffect, useCallback, memo, useRef } from "react";
 import { Search, Loader2, X, WifiOff } from "lucide-react";
 import { useOffline } from "../hooks/use-offline";
 import FallbackImage from "./FallbackImage";
@@ -22,13 +22,13 @@ const SearchBar = memo(function SearchBar({
   const [hasError, setHasError] = useState(false);
   const isOffline = useOffline();
 
-  const debounce = (func, delay) => {
-    let timeoutId;
-    return (...args) => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => func.apply(null, args), delay);
-    };
-  };
+  // Refs to avoid stale closures in async handlers
+  const bookmarksRef = useRef(bookmarks);
+  const offlineRef = useRef(isOffline);
+  const requestSeqRef = useRef(0);
+
+  useEffect(() => { bookmarksRef.current = bookmarks; }, [bookmarks]);
+  useEffect(() => { offlineRef.current = isOffline; }, [isOffline]);
 
   // Improved search similarity function
   const calculateSimilarity = (text, query) => {
@@ -59,7 +59,7 @@ const SearchBar = memo(function SearchBar({
     return wordScore;
   };
 
-  const searchMoviesAndSeries = async (query) => {
+  const searchMoviesAndSeries = async (query, requestId) => {
     // Trim and normalize the query
     const normalizedQuery = query.trim();
     if (!normalizedQuery || normalizedQuery.length < 2) {
@@ -70,7 +70,7 @@ const SearchBar = memo(function SearchBar({
     }
 
     // Check if offline
-    if (isOffline) {
+    if (offlineRef.current) {
       setResults([]);
       setShowResults(true);
       setHasError(true);
@@ -95,34 +95,35 @@ const SearchBar = memo(function SearchBar({
         }),
       ]);
 
-      // Filter out items without posters and get top results
+      // Gather candidates with posters and dates
       const moviesWithPosters = (moviesData || [])
         .filter((movie) => movie.poster_path && movie.release_date)
-        .slice(0, 4);
+        .map((m) => ({ kind: "movie", raw: m }));
 
       const seriesWithPosters = (seriesData || [])
-        .filter(
-          (series) => series.poster_path && series.first_air_date,
-        )
-        .slice(0, 3);
+        .filter((series) => series.poster_path && series.first_air_date)
+        .map((s) => ({ kind: "tv", raw: s }));
 
-      // Process results in parallel with better error handling
-      const allResults = await Promise.allSettled([
-        ...moviesWithPosters.map(async (movie) => {
+      // Build up to 10 candidates quickly from TMDB results (no extra network)
+      const MAX_TOTAL = 10;
+      const combined = [...moviesWithPosters, ...seriesWithPosters].slice(0, MAX_TOTAL);
+
+      // Limit expensive detail/IMDb fetches to keep speed similar to before (~7 calls)
+      const MAX_DETAILED = 7;
+      const detailed = combined.slice(0, MAX_DETAILED);
+      const basic = combined.slice(MAX_DETAILED);
+
+      const detailedPromises = detailed.map(async (entry) => {
+        if (entry.kind === "movie") {
+          const movie = entry.raw;
           try {
             const year = new Date(movie.release_date).getFullYear().toString();
-
-            // Get movie details and IMDb rating in parallel
             const [details, imdbRating] = await Promise.allSettled([
               getMovieDetails(movie.id),
               getIMDbRating(movie.title, year),
             ]);
-
-            const movieDetails =
-              details.status === "fulfilled" ? details.value : null;
-            const rating =
-              imdbRating.status === "fulfilled" ? imdbRating.value : "N/A";
-
+            const movieDetails = details.status === "fulfilled" ? details.value : null;
+            const rating = imdbRating.status === "fulfilled" ? imdbRating.value : "N/A";
             return {
               id: movie.id,
               title: movie.title,
@@ -133,8 +134,6 @@ const SearchBar = memo(function SearchBar({
               runtime: movieDetails?.runtime || 120,
             };
           } catch (error) {
-            console.error(`Error processing movie ${movie.title}:`, error);
-            // Return basic movie info even if details fail
             return {
               id: movie.id,
               title: movie.title,
@@ -145,24 +144,16 @@ const SearchBar = memo(function SearchBar({
               runtime: 120,
             };
           }
-        }),
-        ...seriesWithPosters.map(async (series) => {
+        } else {
+          const series = entry.raw;
           try {
-            const year = new Date(series.first_air_date)
-              .getFullYear()
-              .toString();
-
-            // Get series details and IMDb rating in parallel
+            const year = new Date(series.first_air_date).getFullYear().toString();
             const [details, imdbRating] = await Promise.allSettled([
               getTVDetails(series.id),
               getIMDbRating(series.name, year),
             ]);
-
-            const seriesDetails =
-              details.status === "fulfilled" ? details.value : null;
-            const rating =
-              imdbRating.status === "fulfilled" ? imdbRating.value : "N/A";
-
+            const seriesDetails = details.status === "fulfilled" ? details.value : null;
+            const rating = imdbRating.status === "fulfilled" ? imdbRating.value : "N/A";
             return {
               id: series.id,
               title: series.name,
@@ -174,8 +165,6 @@ const SearchBar = memo(function SearchBar({
               episodes: seriesDetails?.number_of_episodes || 10,
             };
           } catch (error) {
-            console.error(`Error processing series ${series.name}:`, error);
-            // Return basic series info even if details fail
             return {
               id: series.id,
               title: series.name,
@@ -187,62 +176,107 @@ const SearchBar = memo(function SearchBar({
               episodes: 10,
             };
           }
-        }),
-      ]);
+        }
+      });
+
+      const detailedResultsSettled = await Promise.allSettled(detailedPromises);
+      const detailedResults = detailedResultsSettled
+        .filter((r) => r.status === "fulfilled" && r.value)
+        .map((r) => r.value);
+
+      // Build basic results for remaining items without extra requests
+      const basicResults = basic.map((entry) => {
+        if (entry.kind === "movie") {
+          const movie = entry.raw;
+          return {
+            id: movie.id,
+            title: movie.title,
+            year: new Date(movie.release_date).getFullYear().toString(),
+            poster: `https://image.tmdb.org/t/p/w500${movie.poster_path}`,
+            imdbRating: "N/A",
+            type: "movie",
+            runtime: 120,
+          };
+        }
+        const series = entry.raw;
+        return {
+          id: series.id,
+          title: series.name,
+          year: new Date(series.first_air_date).getFullYear().toString(),
+          poster: `https://image.tmdb.org/t/p/w500${series.poster_path}`,
+          imdbRating: "N/A",
+          type: "tv",
+          seasons: 1,
+          episodes: 10,
+        };
+      });
+
+      const allResultsRaw = [...detailedResults, ...basicResults];
 
       // Filter successful results and sort by relevance
-      const successfulResults = allResults
-        .filter(
-          (result) =>
-            result.status === "fulfilled" && result.value !== null,
-        )
-        .map((result) => result.value)
+      const successfulResults = allResultsRaw
         .filter((item) => {
-          const isAlreadyAdded = bookmarks.some(bookmark =>
+          const isAlreadyAdded = bookmarksRef.current.some(bookmark =>
             Number(bookmark.id) === Number(item.id) && bookmark.type === item.type
           );
           return !isAlreadyAdded;
-        }) // Hide already added items
+        })
         .map((item) => ({
           ...item,
           similarity: calculateSimilarity(item.title, normalizedQuery),
           ratingScore: item.imdbRating !== 'N/A' ? parseFloat(item.imdbRating) || 0 : 0
         }))
-        .filter((item) => item.similarity > 0) // Only show items with some similarity
+        .filter((item) => item.similarity > 0)
         .sort((a, b) => {
-          // Primary sort: similarity score (higher = better match)
-          if (a.similarity !== b.similarity) {
-            return b.similarity - a.similarity;
-          }
-
-          // Secondary sort: IMDb rating (higher = better)
-          if (a.ratingScore !== b.ratingScore) {
-            return b.ratingScore - a.ratingScore;
-          }
-
-          // Tertiary sort: type preference (movies first)
-          if (a.type !== b.type) {
-            return a.type === "movie" ? -1 : 1;
-          }
-
-          // Final sort: alphabetical
+          if (a.similarity !== b.similarity) return b.similarity - a.similarity;
+          if (a.ratingScore !== b.ratingScore) return b.ratingScore - a.ratingScore;
+          if (a.type !== b.type) return a.type === "movie" ? -1 : 1;
           return a.title.localeCompare(b.title);
         });
 
-      setResults(successfulResults);
+      if (requestId === requestSeqRef.current) {
+        setResults(successfulResults);
+      }
     } catch (error) {
       console.error("Search error:", error);
       setResults([]);
     } finally {
-      setIsLoading(false);
+      if (requestId === requestSeqRef.current) {
+        setIsLoading(false);
+      }
     }
   };
 
-  const debouncedSearch = useCallback(debounce(searchMoviesAndSeries, 400), []);
-
+  // Debounced search without stale closures
   useEffect(() => {
-    debouncedSearch(searchTerm);
-  }, [searchTerm, debouncedSearch]);
+    const normalized = (searchTerm || "").trim();
+    if (normalized.length < 2) {
+      setResults([]);
+      setShowResults(false);
+      setHasError(false);
+      setIsLoading(false);
+      return;
+    }
+
+    setShowResults(true);
+    setHasError(false);
+    setIsLoading(true);
+
+    const id = ++requestSeqRef.current;
+    const timer = setTimeout(() => {
+      if (offlineRef.current) {
+        if (id === requestSeqRef.current) {
+          setResults([]);
+          setHasError(true);
+          setIsLoading(false);
+        }
+        return;
+      }
+      searchMoviesAndSeries(normalized, id);
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   const handleAddBookmark = (item) => {
     onAddBookmark(item);
@@ -268,7 +302,7 @@ const SearchBar = memo(function SearchBar({
           placeholder="Search for a movie or series..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-12 pr-12 py-4 text-lg bg-card/80 backdrop-blur-sm border border-border/50 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary transition-all shadow-lg"
+          className="w-full pl-12 pr-12 py-3 sm:py-4 text-base sm:text-lg bg-card/80 backdrop-blur-sm border border-border/50 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary transition-all shadow-lg"
         />
         {searchTerm && (
           <button
@@ -287,7 +321,7 @@ const SearchBar = memo(function SearchBar({
               <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
               <span className="text-muted-foreground">Searching...</span>
             </div>
-          ) : hasError && isOffline ? (
+          ) : hasError && offlineRef.current ? (
             <div className="p-6 text-center text-muted-foreground">
               <WifiOff className="w-8 h-8 mx-auto mb-3 opacity-50" />
               <p className="font-medium">You're offline</p>
