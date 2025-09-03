@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, memo } from "react";
+import { useState, useEffect, useCallback, memo, useRef } from "react";
 import { Search, Loader2, X, WifiOff } from "lucide-react";
 import { useOffline } from "../hooks/use-offline";
 import FallbackImage from "./FallbackImage";
@@ -22,13 +22,13 @@ const SearchBar = memo(function SearchBar({
   const [hasError, setHasError] = useState(false);
   const isOffline = useOffline();
 
-  const debounce = (func, delay) => {
-    let timeoutId;
-    return (...args) => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => func.apply(null, args), delay);
-    };
-  };
+  // Refs to avoid stale closures in async handlers
+  const bookmarksRef = useRef(bookmarks);
+  const offlineRef = useRef(isOffline);
+  const requestSeqRef = useRef(0);
+
+  useEffect(() => { bookmarksRef.current = bookmarks; }, [bookmarks]);
+  useEffect(() => { offlineRef.current = isOffline; }, [isOffline]);
 
   // Improved search similarity function
   const calculateSimilarity = (text, query) => {
@@ -59,7 +59,7 @@ const SearchBar = memo(function SearchBar({
     return wordScore;
   };
 
-  const searchMoviesAndSeries = async (query) => {
+  const searchMoviesAndSeries = async (query, requestId) => {
     // Trim and normalize the query
     const normalizedQuery = query.trim();
     if (!normalizedQuery || normalizedQuery.length < 2) {
@@ -70,7 +70,7 @@ const SearchBar = memo(function SearchBar({
     }
 
     // Check if offline
-    if (isOffline) {
+    if (offlineRef.current) {
       setResults([]);
       setShowResults(true);
       setHasError(true);
@@ -216,7 +216,7 @@ const SearchBar = memo(function SearchBar({
       // Filter successful results and sort by relevance
       const successfulResults = allResultsRaw
         .filter((item) => {
-          const isAlreadyAdded = bookmarks.some(bookmark =>
+          const isAlreadyAdded = bookmarksRef.current.some(bookmark =>
             Number(bookmark.id) === Number(item.id) && bookmark.type === item.type
           );
           return !isAlreadyAdded;
@@ -234,20 +234,49 @@ const SearchBar = memo(function SearchBar({
           return a.title.localeCompare(b.title);
         });
 
-      setResults(successfulResults);
+      if (requestId === requestSeqRef.current) {
+        setResults(successfulResults);
+      }
     } catch (error) {
       console.error("Search error:", error);
       setResults([]);
     } finally {
-      setIsLoading(false);
+      if (requestId === requestSeqRef.current) {
+        setIsLoading(false);
+      }
     }
   };
 
-  const debouncedSearch = useCallback(debounce(searchMoviesAndSeries, 400), []);
-
+  // Debounced search without stale closures
   useEffect(() => {
-    debouncedSearch(searchTerm);
-  }, [searchTerm, debouncedSearch]);
+    const normalized = (searchTerm || "").trim();
+    if (normalized.length < 2) {
+      setResults([]);
+      setShowResults(false);
+      setHasError(false);
+      setIsLoading(false);
+      return;
+    }
+
+    setShowResults(true);
+    setHasError(false);
+    setIsLoading(true);
+
+    const id = ++requestSeqRef.current;
+    const timer = setTimeout(() => {
+      if (offlineRef.current) {
+        if (id === requestSeqRef.current) {
+          setResults([]);
+          setHasError(true);
+          setIsLoading(false);
+        }
+        return;
+      }
+      searchMoviesAndSeries(normalized, id);
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   const handleAddBookmark = (item) => {
     onAddBookmark(item);
@@ -292,7 +321,7 @@ const SearchBar = memo(function SearchBar({
               <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
               <span className="text-muted-foreground">Searching...</span>
             </div>
-          ) : hasError && isOffline ? (
+          ) : hasError && offlineRef.current ? (
             <div className="p-6 text-center text-muted-foreground">
               <WifiOff className="w-8 h-8 mx-auto mb-3 opacity-50" />
               <p className="font-medium">You're offline</p>

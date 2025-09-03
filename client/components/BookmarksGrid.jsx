@@ -97,6 +97,11 @@ export default function BookmarksGrid({
       kind: "franchise",
       franchise,
       movies,
+      // Stable unique key: name + sorted (type-id) list to avoid collisions
+      franchiseKey: `franchise-${franchise}-${movies
+        .map((m) => `${m.type}-${m.id}`)
+        .sort()
+        .join("|")}`,
       minAddedAt: Math.min(...movies.map((m) => m.addedAt || 0)),
       maxAddedAt: Math.max(...movies.map((m) => m.addedAt || 0)),
     })
@@ -120,13 +125,13 @@ export default function BookmarksGrid({
       return nameB.localeCompare(nameA);
     }
     if (sortType === "time_asc") {
-      const timeA = a.kind === "franchise" ? (a.minAddedAt || 0) : (a.item.addedAt || 0);
-      const timeB = b.kind === "franchise" ? (b.minAddedAt || 0) : (b.item.addedAt || 0);
+      const timeA = a.kind === "franchise" ? (Number.isFinite(a.minAddedAt) ? a.minAddedAt : Number.MAX_SAFE_INTEGER) : (Number.isFinite(a.item.addedAt) ? a.item.addedAt : Number.MAX_SAFE_INTEGER);
+      const timeB = b.kind === "franchise" ? (Number.isFinite(b.minAddedAt) ? b.minAddedAt : Number.MAX_SAFE_INTEGER) : (Number.isFinite(b.item.addedAt) ? b.item.addedAt : Number.MAX_SAFE_INTEGER);
       return timeA - timeB;
     }
     // time_desc default
-    const timeA = a.kind === "franchise" ? (a.maxAddedAt || 0) : (a.item.addedAt || 0);
-    const timeB = b.kind === "franchise" ? (b.maxAddedAt || 0) : (b.item.addedAt || 0);
+    const timeA = a.kind === "franchise" ? (Number.isFinite(a.maxAddedAt) ? a.maxAddedAt : Number.MIN_SAFE_INTEGER) : (Number.isFinite(a.item.addedAt) ? a.item.addedAt : Number.MIN_SAFE_INTEGER);
+    const timeB = b.kind === "franchise" ? (Number.isFinite(b.maxAddedAt) ? b.maxAddedAt : Number.MIN_SAFE_INTEGER) : (Number.isFinite(b.item.addedAt) ? b.item.addedAt : Number.MIN_SAFE_INTEGER);
     return timeB - timeA;
   });
 
@@ -229,9 +234,9 @@ export default function BookmarksGrid({
             const { franchise, movies } = card;
             return (
               <div
-                key={`franchise-${franchise}`}
+                key={card.franchiseKey}
                 className="relative group cursor-pointer w-full max-w-[220px]"
-                onMouseEnter={() => setHoveredCard(`franchise-${franchise}`)}
+                onMouseEnter={() => setHoveredCard(card.franchiseKey)}
                 onMouseLeave={() => setHoveredCard(null)}
                 onClick={() => onCardClick({ ...movies[0], franchise })}
               >
@@ -257,7 +262,7 @@ export default function BookmarksGrid({
                     </div>
                   </div>
 
-                  {hoveredCard === `franchise-${franchise}` && (
+                  {hoveredCard === card.franchiseKey && (
                     <div className="absolute inset-0 bg-black/80 flex flex-col justify-between p-4 backdrop-blur-sm">
                       <div className="flex justify-between items-start">
                         <button
@@ -328,6 +333,16 @@ export default function BookmarksGrid({
                   onCardClick(item);
                 }
               }}
+              onKeyDown={(e) => {
+                if (selectionMode && item.type === "movie" && (e.key === "Enter" || e.key === " ")) {
+                  e.preventDefault();
+                  onToggleSelect && onToggleSelect(item);
+                }
+              }}
+              role={selectionMode && item.type === "movie" ? "button" : undefined}
+              tabIndex={selectionMode && item.type === "movie" ? 0 : -1}
+              aria-pressed={selectionMode && item.type === "movie" ? isSelected(item) : undefined}
+              aria-disabled={selectionMode && item.type !== "movie" ? true : undefined}
             >
               <div className={`relative aspect-[2/3] rounded-2xl overflow-hidden bg-card/80 backdrop-blur-sm border ${isSelected(item) ? "border-primary ring-2 ring-ring" : "border-border/30"} shadow-xl transition-all duration-300 group-hover:scale-105 group-hover:shadow-2xl`}>
                 <FallbackImage
@@ -338,9 +353,19 @@ export default function BookmarksGrid({
                 />
 
                 {selectionMode && item.type === "movie" && (
-                  <div className="absolute top-3 left-3 z-10">
-                    <div className={`w-5 h-5 rounded border ${isSelected(item) ? "bg-primary border-primary" : "bg-background/60 border-border"}`}></div>
-                  </div>
+                  <label className="absolute top-3 left-3 z-10 flex items-center">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${item.title}`}
+                      checked={isSelected(item)}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        onToggleSelect && onToggleSelect(item);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className={`w-5 h-5 rounded-sm border bg-background focus:outline-none focus:ring-2 focus:ring-ring accent-primary ${isSelected(item) ? "border-primary" : "border-border"}`}
+                    />
+                  </label>
                 )}
 
                 {hoveredCard === `${item.type}-${item.id}` && !selectionMode && (

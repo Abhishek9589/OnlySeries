@@ -60,6 +60,20 @@ export default function Index() {
     }
   }, []);
 
+  // Normalize missing addedAt once to keep time-based sorting stable
+  useEffect(() => {
+    if (!Array.isArray(bookmarks) || bookmarks.length === 0) return;
+    const hasMissing = bookmarks.some((b) => typeof b.addedAt !== "number" || !Number.isFinite(b.addedAt));
+    if (hasMissing) {
+      const base = Date.now() - bookmarks.length;
+      const withAdded = bookmarks.map((it, i) => ({
+        ...it,
+        addedAt: (typeof it.addedAt === "number" && Number.isFinite(it.addedAt)) ? it.addedAt : (base + i),
+      }));
+      setBookmarks(withAdded);
+    }
+  }, [bookmarks]);
+
   // Save bookmarks to localStorage whenever bookmarks change
   useEffect(() => {
     localStorage.setItem("onlyseries-bookmarks", JSON.stringify(bookmarks));
