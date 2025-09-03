@@ -205,7 +205,7 @@ export default function Index() {
           )}
 
           {/* Import/Export and Filter Controls - Fixed position */}
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 md:top-6 md:right-6 md:left-auto md:translate-x-0 z-50 flex gap-2 flex-wrap justify-center">
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 md:top-6 md:right-6 md:left-auto md:translate-x-0 z-50 flex gap-2 justify-center">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
