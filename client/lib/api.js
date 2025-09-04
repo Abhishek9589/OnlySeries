@@ -104,3 +104,21 @@ export const getTVSeason = async (id, season) => {
     });
   }
 };
+
+export const getTrendingMovies = async () => {
+  try {
+    const response = await axios.get(`/api/trending/movies`, { timeout: 15000 });
+    return response.data.results || [];
+  } catch (error) {
+    return handleApiError(error, []);
+  }
+};
+
+export const getTrendingTV = async () => {
+  try {
+    const response = await axios.get(`/api/trending/tv`, { timeout: 15000 });
+    return response.data.results || [];
+  } catch (error) {
+    return handleApiError(error, []);
+  }
+};

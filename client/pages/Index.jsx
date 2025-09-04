@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Download, Upload, ArrowDown, ArrowUp, Filter, Share2, Eye, EyeOff, ArrowUpDown } from "lucide-react";
 import SearchBar from "../components/SearchBar";
 import Timer from "../components/Timer";
@@ -25,6 +25,21 @@ export default function Index() {
   const [selectedKeys, setSelectedKeys] = useState([]);
   const [showFranchiseDialog, setShowFranchiseDialog] = useState(false);
   const [franchiseName, setFranchiseName] = useState("");
+  const [franchiseFilter, setFranchiseFilter] = useState("");
+
+  const franchiseCounts = useMemo(() => {
+    const map = new Map();
+    bookmarks
+      .filter((b) => b.type === "movie" && b.franchise)
+      .forEach((b) => {
+        const name = String(b.franchise || "").trim();
+        if (!name) return;
+        map.set(name, (map.get(name) || 0) + 1);
+      });
+    return Array.from(map.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [bookmarks]);
 
   // Load bookmarks from localStorage on mount
   useEffect(() => {
@@ -417,24 +432,38 @@ export default function Index() {
       {showFranchiseDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60" onClick={() => setShowFranchiseDialog(false)} />
-          <div className="relative w-full max-w-md bg-card/95 backdrop-blur-md border border-border/50 rounded-2xl p-6 shadow-2xl">
+          <div className="relative w-full max-w-2xl bg-card/95 backdrop-blur-md border border-border/50 rounded-2xl p-6 shadow-2xl">
             <h3 className="text-lg font-semibold mb-3 text-foreground">Name the Franchise</h3>
             <p className="text-sm text-muted-foreground mb-4">Enter a name or choose an existing franchise.</p>
 
             {/* Existing Franchises */}
-            {Array.from(new Set(bookmarks.filter(b => b.type === "movie" && b.franchise).map(b => b.franchise))).length > 0 && (
+            {franchiseCounts.length > 0 && (
               <div className="mb-4">
                 <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Existing</div>
-                <div className="flex flex-wrap gap-2">
-                  {Array.from(new Set(bookmarks.filter(b => b.type === "movie" && b.franchise).map(b => b.franchise))).map((name) => (
-                    <button
-                      key={name}
-                      onClick={() => setFranchiseName(name)}
-                      className={`px-2.5 py-1 rounded-full border text-sm ${franchiseName === name ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-foreground hover:bg-card/80"}`}
-                    >
-                      {name}
-                    </button>
-                  ))}
+                <input
+                  value={franchiseFilter}
+                  onChange={(e) => setFranchiseFilter(e.target.value)}
+                  placeholder="Filter franchises"
+                  className="w-full mb-3 px-3 py-2 rounded-md bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                <div className="max-h-72 overflow-y-auto rounded-md border border-border/40 p-2 bg-background/60">
+                  <div className="grid grid-cols-5 sm:grid-cols-6 gap-2">
+                    {franchiseCounts
+                      .filter(({ name }) => name.toLowerCase().includes(franchiseFilter.trim().toLowerCase()))
+                      .map(({ name }) => {
+                        const label = name.length > 12 ? name.slice(0, 9) + "....." : name;
+                        return (
+                          <button
+                            key={name}
+                            onClick={() => setFranchiseName((prev) => (prev === name ? "" : name))}
+                            className={`w-full text-left px-2.5 py-1 rounded-full border text-xs whitespace-nowrap overflow-hidden ${franchiseName === name ? "bg-primary text-primary-foreground border-primary" : "bg-card/60 border-border text-foreground hover:bg-card"}`}
+                            title={name}
+                          >
+                            <span className="block truncate">{label}</span>
+                          </button>
+                        );
+                      })}
+                  </div>
                 </div>
               </div>
             )}
