@@ -1,6 +1,6 @@
 # onlyseries.towatch
 
-A fast, client-first web app to search, bookmark, group, and track movies/TV shows. Includes manual franchise grouping, pagination with jump-to-page, rich search with 10 fast recommendations, watch-status filtering, sorting, a watch-time timer, and JSON import/export.
+A fast, client-first web app to search, bookmark, group, and track movies/TV shows. Includes manual franchise grouping, pagination with jump-to-page, rich search with expandable suggestions (shown only while typing), watch-status filtering, sorting, a watch-time timer, and JSON import/export.
 
 ## Features
 - Bookmarks: Add movies/TV from TMDB search; deduped; persisted to localStorage
@@ -8,8 +8,8 @@ A fast, client-first web app to search, bookmark, group, and track movies/TV sho
 - Pagination: 36 cards per page, page input, Previous/Next, controls shown above and below grid
 - Sorting: A → Z, Z → A, Time added (First → Last / Last → First); applies to franchises and individual items
 - Watch status: Toggle Watched / Will Watch; filter by all/watched/unwatched
-- Search (catalog): Up to 10 instant recommendations (limits expensive calls for speed); offline-aware UX
-- Search (in-library): Compact icon near pagination that expands to a search bar; live dropdown results that respect the current watch filter; doesn’t collapse or alter the main grid
+- Search (catalog): Suggestions appear only while typing (min 2 chars), ranked with fuzzy matching and selection boosts; tab filter (All/TV/Movies) with “Show more” beyond 10; offline-aware UX; hides already-added items
+- Search (in-library): Compact icon near pagination expands to a search bar; live dropdown results respect the current watch filter; grid remains unchanged
 - Timer: Aggregated watch time (Year:Day:Hr:Min) with counts of movies and series
 - Import/Export: Download current library to JSON (includes franchise, watchStatus, addedAt, etc). Upload restores these
 - Responsive UI: Desktop, tablet, mobile; top actions keep a single row on mobile; compact no-scroll detail dialogs for movie on mobile/desktop; sticky scroll-to-top button
@@ -95,10 +95,10 @@ This section walks through the codebase so a newcomer can understand what each f
 - pages/NotFound.jsx: Fallback page for unknown routes.
 
 ### Components (client/components)
-- SearchBar.jsx: Debounced TMDB search UI. Shows up to 10 fast recommendations (limits extra API calls to keep it fast). Fetches details/ratings for first ~7; others are lightweight. Hides items already in bookmarks. Calls onAddBookmark when an item is clicked.
+- SearchBar.jsx: Debounced TMDB search UI. Suggestions are shown only while typing (min 2 chars) with fuzzy matching, selection boosting, tab filter (All/TV/Movies), and “Show more”. Limits extra API calls (details/ratings for first ~7). Hides items already in bookmarks. Calls onAddBookmark on click.
 - Timer.jsx: Aggregates total watch time over filtered bookmarks; displays as Yr:Day:Hr:Min plus counts for movies/series.
 - BookmarksGrid.jsx: Displays cards (franchises + individual items), 36 per page with page input and prev/next on top and bottom. Supports selectionMode for grouping; hover actions include toggle watch status and remove.
-- DialogBox.jsx: Details dialog for a selected item (and franchise aggregates if applicable).
+- DialogBox.jsx: Details dialog for a selected item (and franchise aggregates if applicable). Franchise naming dialog improved: larger layout, filter field, 5–6 column chip grid, names-only chips with truncation “.....”, and toggleable selection.
 - OfflineBanner.jsx: Warns when offline for search.
 - FallbackImage.jsx: Robust image component with graceful fallback styling.
 - StreamingPlatforms.jsx, EpisodeRatingGrid.jsx, SearchBar.jsx, etc.: Feature-specific UI.
@@ -124,7 +124,7 @@ This section walks through the codebase so a newcomer can understand what each f
 - robots.txt: Basic robots directives.
 
 ## Data Flow Summary
-1) User searches in SearchBar → TMDB results are fetched (movies + TV) → up to 10 suggestions built (first ~7 with details/IMDb rating). Offline state shows a friendly message.
+1) User searches in SearchBar → TMDB results are fetched (movies + TV) → suggestions are built (first ~7 with details/IMDb rating) and shown only while typing. Offline state shows a friendly message.
 2) Clicking a result calls onAddBookmark → Index.jsx adds a normalized item into localStorage with fields (type, id, title, poster, year, imdbRating, runtime/seasons/episodes, watchStatus, franchise?, addedAt).
 3) Index.jsx renders BookmarksGrid with current filter/sort, selectionMode flags, and callbacks.
 4) Grouping to franchise: enter selection mode → pick movies → "Group as Franchise" → choose existing or type a name in dialog → selected movies get franchise set to that name. Franchises display as single cards summarizing grouped items.
@@ -143,11 +143,10 @@ This section walks through the codebase so a newcomer can understand what each f
 - Add server endpoints in server/routes and expose them in server/index.js; call them via client/lib/api.js.
 
 ## Changelog
-- Added: Mobile top actions stay on a single line
-- Added: Compact, no-scroll movie dialogs for mobile and desktop
-- Added: Unified franchise watch toggle (card overlay and dialog) affecting all movies instantly
-- Added: Stable series matrix with independent scroll for seasons/episodes; scrollbars only on overflow
-- Added: In-library search icon on pagination that expands to a live-search bar; results dropdown respects current filter and doesn’t collapse the grid
+- Added: Suggestions shown only while typing with tab filters and “Show more”
+- Added: Selection-based boosting and fuzzy ranking in catalog search
+- Added: Larger franchise naming dialog with filter, 5–6 column chip grid, truncation “.....”, and toggleable chips
+- Added: In-library search icon on pagination with live-search dropdown (respects filter)
 - Fixed: Time-based sorting stability by backfilling missing addedAt
 - Fixed: Franchise card keys uniqueness to avoid React key collisions
 - Improved: Search state management to avoid flicker and stale results

@@ -12,10 +12,10 @@ A client-first React app to search, bookmark, group (franchise), and track movie
 - Pagination: 36 cards/page with input and Previous/Next controls at top and bottom
 - Sorting: A→Z, Z→A, Time added (First→Last / Last→First); applies to franchises and individual items
 - Watch filter: All / Will Watch / Watched
-- Catalog search (top): Fast suggestions; offline-aware; hides items already added
+- Catalog search (top): Suggestions appear only while typing (min 2 chars); fuzzy ranking with selection boosts; tab filter (All/TV/Movies); “Show more” beyond 10; offline-aware; hides already-added items
 - In‑library search (pagination bar): Collapsible search icon expands to a live-search bar; results dropdown appears under input and respects current watch filter; grid does not collapse
 - Series matrix: Stable grid with horizontal scroll for episodes and vertical scroll for seasons; scrollbars appear only when overflow
-- Detail dialogs: Compact, no-scroll movie dialogs on mobile and desktop with title, year, type, IMDb rating, toggle, runtime, delete, and poster
+- Detail dialogs: Compact, no-scroll movie dialogs on mobile/desktop with title, year, type, IMDb rating, toggle, runtime, delete, and poster. Franchise naming dialog is larger with a filter field and a 5–6 column chip grid; chips show names only with truncation “.....” and are toggleable.
 - Top actions: On mobile, top-right icons stay on a single line
 - Import/Export: Download/Upload JSON reflects full state (franchise, watchStatus, addedAt, etc.)
 
@@ -49,14 +49,14 @@ Exported JSON mirrors the above. Import preserves franchise/watchStatus and back
   - Franchise selection workflow and naming dialog
   - Renders SearchBar, Timer, BookmarksGrid, DialogBox, OfflineBanner, ScrollToTop
 - client/components/SearchBar.jsx
-  - Debounced catalog search with fast suggestions; hides already-bookmarked items
+  - Debounced catalog search; suggestions only while typing; fuzzy/boosted ranking; tab filter and “Show more”; hides already-bookmarked items
 - client/components/BookmarksGrid.jsx
   - Cards (franchises + individual items), pagination controls at top/bottom
   - Hover actions (toggle watched, remove)
   - Collapsible in‑library search icon with live dropdown results (respects watch filter)
 - client/components/DialogBox.jsx
   - Compact movie dialog (mobile/desktop) with required fields and no scrolling
-  - Franchise dialog shows aggregated info; toggle applies to all movies in the franchise
+  - Franchise naming dialog improved: larger, filterable list with 5–6 column chips; names truncated with “.....”; chip click toggles select/unselect; franchise toggle still applies to all movies in franchise
 - client/components/EpisodeRatingGrid.jsx
   - Series matrix with stable layout; shows scrollbars only when seasons/episodes overflow
 - client/hooks/use-mobile.jsx

@@ -96,6 +96,31 @@ export const searchTV = async (req, res) => {
   }
 };
 
+// Proxy for TMDb trending movies and TV
+export const trendingMovies = async (_req, res) => {
+  try {
+    const response = await axios.get(`https://api.themoviedb.org/3/trending/movie/week`, {
+      params: { api_key: TMDB_API_KEY },
+    });
+    res.json(response.data);
+  } catch (error) {
+    console.error("TMDb trending movies error:", error);
+    res.status(500).json({ error: "Failed to get trending movies" });
+  }
+};
+
+export const trendingTV = async (_req, res) => {
+  try {
+    const response = await axios.get(`https://api.themoviedb.org/3/trending/tv/week`, {
+      params: { api_key: TMDB_API_KEY },
+    });
+    res.json(response.data);
+  } catch (error) {
+    console.error("TMDb trending tv error:", error);
+    res.status(500).json({ error: "Failed to get trending TV" });
+  }
+};
+
 // Proxy for TMDb movie details
 export const getMovieDetails = async (req, res) => {
   try {
