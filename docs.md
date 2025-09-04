@@ -72,7 +72,7 @@ Exported JSON mirrors the above. Import preserves franchise/watchStatus and back
 - Mobile top icons: Fixed bar; icons stay on a single line
 - In‑library search (pagination bar)
   - Default: search icon only
-  - Click icon: expands to input and auto-focuses; typing shows up to 20 results in dropdown
+  - Click icon: expands to a wider input and auto-focuses; typing shows up to 20 results in dropdown; border and focus ring are fully visible (no clipping)
   - Results dropdown: Does not affect main grid; respects watch filter; click to open the item/franchise dialog
   - Click icon again (or Esc): collapses input
 - Franchise toggle
@@ -106,6 +106,7 @@ Exported JSON mirrors the above. Import preserves franchise/watchStatus and back
 - Time sort stability via addedAt backfill
 - Unique franchise card keys to prevent collisions
 - Improved search state to avoid flicker/stale results
+- In‑library search bar widened; border/focus ring no longer clipped
 
 ## Extending the App
 - New fields: Add where bookmarks are created (Index.jsx onAddBookmark) and they’ll be included in export/import automatically

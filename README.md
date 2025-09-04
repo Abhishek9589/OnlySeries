@@ -9,7 +9,7 @@ A fast, client-first web app to search, bookmark, group, and track movies/TV sho
 - Sorting: A → Z, Z → A, Time added (First → Last / Last → First); applies to franchises and individual items
 - Watch status: Toggle Watched / Will Watch; filter by all/watched/unwatched
 - Search (catalog): Suggestions appear only while typing (min 2 chars), ranked with fuzzy matching and selection boosts; tab filter (All/TV/Movies) with “Show more” beyond 10; offline-aware UX; hides already-added items
-- Search (in-library): Compact icon near pagination expands to a search bar; live dropdown results respect the current watch filter; grid remains unchanged
+- Search (in-library): Compact icon near pagination expands to a wider search bar; live dropdown results respect the current watch filter; grid remains unchanged; border and focus ring are fully visible (no clipping)
 - Timer: Aggregated watch time (Year:Day:Hr:Min) with counts of movies and series
 - Import/Export: Download current library to JSON (includes franchise, watchStatus, addedAt, etc). Upload restores these
 - Responsive UI: Desktop, tablet, mobile; top actions keep a single row on mobile; compact no-scroll detail dialogs for movie on mobile/desktop; sticky scroll-to-top button
@@ -150,3 +150,4 @@ This section walks through the codebase so a newcomer can understand what each f
 - Fixed: Time-based sorting stability by backfilling missing addedAt
 - Fixed: Franchise card keys uniqueness to avoid React key collisions
 - Improved: Search state management to avoid flicker and stale results
+- Improved: In-library search bar widened and border/focus ring no longer clipped

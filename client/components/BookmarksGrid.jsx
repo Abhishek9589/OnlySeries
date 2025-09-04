@@ -84,7 +84,7 @@ function PaginationControlsBar({
           >
             <Search className="w-4 h-4" />
           </button>
-          <div className={`relative overflow-hidden transition-all duration-200 ${expanded ? "w-56 sm:w-72" : "w-0"}`}>
+          <div className={`relative transition-all duration-200 ${expanded ? "w-64 sm:w-80" : "w-0"}`}>
             <Search className={`absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4 ${expanded ? "opacity-100" : "opacity-0"}`} />
             <input
               ref={inputRef}
@@ -92,7 +92,7 @@ function PaginationControlsBar({
               onChange={(e) => setLocalSearch(e.target.value)}
               placeholder="Search your list..."
               tabIndex={expanded ? 0 : -1}
-              className={`w-full ${expanded ? "pl-9 pr-9 py-2 sm:py-2.5 border border-border/50" : "p-0 border-0"} bg-card/80 backdrop-blur-sm rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary transition-all shadow-lg text-foreground`}
+              className={`w-full ${expanded ? "pl-9 pr-9 py-2 sm:py-2.5 border border-border/70" : "p-0 border-0"} bg-card/80 backdrop-blur-sm rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary transition-all shadow-lg text-foreground`}
             />
             {expanded && localSearch && (
               <button
