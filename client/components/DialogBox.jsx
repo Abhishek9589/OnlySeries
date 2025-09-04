@@ -210,25 +210,48 @@ export default function DialogBox({
 
                       {/* Watch Status Toggle */}
                       {onToggleWatchStatus && (
-                        <button
-                          onClick={(e) => {
+                        (() => {
+                          const isFranchiseView = !!(item.franchise && Array.isArray(franchiseMovies) && franchiseMovies.length > 0);
+                          const allWatched = isFranchiseView
+                            ? franchiseMovies.every((m) => m.watchStatus === "watched")
+                            : item.watchStatus === "watched";
+
+                          const btnClasses = allWatched
+                            ? "bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
+                            : "bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30";
+
+                          const handleToggle = (e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            onToggleWatchStatus(item.id, item.type);
-                          }}
-                          className={`p-2 rounded-lg transition-all ${
-                            item.watchStatus === "watched"
-                              ? "bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
-                              : "bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30"
-                          }`}
-                          title={item.watchStatus === "watched" ? "Watched" : "Will Watch"}
-                        >
-                          {item.watchStatus === "watched" ? (
-                            <EyeOff className="w-5 h-5" />
-                          ) : (
-                            <Eye className="w-5 h-5" />
-                          )}
-                        </button>
+                            if (isFranchiseView) {
+                              if (allWatched) {
+                                franchiseMovies.forEach((m) => {
+                                  if (m.watchStatus === "watched") onToggleWatchStatus(m.id, m.type);
+                                });
+                              } else {
+                                franchiseMovies.forEach((m) => {
+                                  if (m.watchStatus !== "watched") onToggleWatchStatus(m.id, m.type);
+                                });
+                              }
+                            } else {
+                              onToggleWatchStatus(item.id, item.type);
+                            }
+                          };
+
+                          return (
+                            <button
+                              onClick={handleToggle}
+                              className={`p-2 rounded-lg transition-all ${btnClasses}`}
+                              title={allWatched ? "Watched" : "Will Watch"}
+                            >
+                              {allWatched ? (
+                                <EyeOff className="w-5 h-5" />
+                              ) : (
+                                <Eye className="w-5 h-5" />
+                              )}
+                            </button>
+                          );
+                        })()
                       )}
                     </div>
                   </div>
