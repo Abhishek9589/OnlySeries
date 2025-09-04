@@ -4,20 +4,30 @@ A fast, client-first web app to search, bookmark, group, and track movies/TV sho
 
 ## Features
 - Bookmarks: Add movies/TV from TMDB search; deduped; persisted to localStorage
-- Manual franchises: Multi-select movies, name/create or add to existing franchise; grouped cards with hover actions
+- Manual franchises: Multi-select movies, name/create or add to existing franchise; grouped cards with hover actions; unified franchise toggle (card and dialog) updates all movies at once
 - Pagination: 36 cards per page, page input, Previous/Next, controls shown above and below grid
 - Sorting: A → Z, Z → A, Time added (First → Last / Last → First); applies to franchises and individual items
 - Watch status: Toggle Watched / Will Watch; filter by all/watched/unwatched
-- Search: Up to 10 instant recommendations (limits expensive calls for speed); offline-aware UX
+- Search (catalog): Up to 10 instant recommendations (limits expensive calls for speed); offline-aware UX
+- Search (in-library): Compact icon near pagination that expands to a search bar; live dropdown results that respect the current watch filter; doesn’t collapse or alter the main grid
 - Timer: Aggregated watch time (Year:Day:Hr:Min) with counts of movies and series
 - Import/Export: Download current library to JSON (includes franchise, watchStatus, addedAt, etc). Upload restores these
-- Responsive UI: Desktop, tablet, mobile; sticky scroll-to-top button
+- Responsive UI: Desktop, tablet, mobile; top actions keep a single row on mobile; compact no-scroll detail dialogs for movie on mobile/desktop; sticky scroll-to-top button
+- Series matrix: Stable grid with x-axis scroll for episodes and y-axis scroll for seasons; scrollbars appear only when overflow
 
 ## Tech Stack
 - React 18 + Vite (dev/build)
 - Tailwind CSS + Radix primitives + lucide-react icons
 - Express API (server) with TMDB + OMDb proxy and key rotation
 - GSAP for small entrance animations
+
+## Usage
+- Add items: Use the main search at the top to add movies/series. Click a suggestion to add.
+- In-library search: On the pagination bar, click the search icon to expand a compact search. Typing shows live results below the input without changing the grid; results respect the current All/Watched/Will Watch filter. Click again (or Esc) to collapse.
+- Franchise toggle: On a franchise card (hover) and in the franchise dialog, the watch toggle applies to all movies in that franchise at once and updates immediately.
+- Detail dialogs: Movie dialogs are compact and avoid scrolling on mobile/desktop while still showing title, year, type, IMDb rating, toggle, runtime, delete, and poster.
+- Series matrix: Scroll horizontally to see more episodes and vertically to see more seasons; scrollbars appear only when there’s overflow.
+- Top actions: On mobile, top-right actions/icons stay on a single row.
 
 ## Scripts
 - dev: vite (client dev server)
@@ -131,3 +141,13 @@ This section walks through the codebase so a newcomer can understand what each f
 - Add new fields to bookmark items by updating where items are created (SearchBar → onAddBookmark in Index.jsx) and ensuring export/import reflect changes automatically via localStorage serialization.
 - Add more sort options by extending BookmarksGrid’s sortType handling and the sort dropdown in Index.jsx.
 - Add server endpoints in server/routes and expose them in server/index.js; call them via client/lib/api.js.
+
+## Changelog
+- Added: Mobile top actions stay on a single line
+- Added: Compact, no-scroll movie dialogs for mobile and desktop
+- Added: Unified franchise watch toggle (card overlay and dialog) affecting all movies instantly
+- Added: Stable series matrix with independent scroll for seasons/episodes; scrollbars only on overflow
+- Added: In-library search icon on pagination that expands to a live-search bar; results dropdown respects current filter and doesn’t collapse the grid
+- Fixed: Time-based sorting stability by backfilling missing addedAt
+- Fixed: Franchise card keys uniqueness to avoid React key collisions
+- Improved: Search state management to avoid flicker and stale results
