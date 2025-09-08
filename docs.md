@@ -1,9 +1,9 @@
 # onlyseries.towatch — Documentation
 
-This document describes the app’s architecture, key features, data model, and recent UX changes.
+This document describes the app’s architecture, key features, data model, API surface, and development workflow.
 
 ## Overview
-A client-first React app to search, bookmark, group (franchise), and track movies/TV shows. Data is stored in localStorage with import/export to JSON. A small Express proxy serves TMDB/OMDb requests in development/production builds.
+A client-first React app to search, bookmark, group (franchise), and track movies/TV shows. Data is stored in localStorage with import/export to JSON. A small Express proxy serves TMDB/OMDb requests in development (mounted into Vite) and production builds.
 
 ## Key Features
 - Bookmarks: Add movies/TV via TMDB search; deduped; persisted locally
@@ -22,7 +22,25 @@ A client-first React app to search, bookmark, group (franchise), and track movie
 ## Architecture
 - Client: React 18 + Vite + Tailwind; small GSAP entrance animations; lucide-react icons; Radix-based UI primitives (dropdown, toast, tooltip)
 - Server: Express proxy for TMDB and OMDb
+- Dev server: Vite mounts the Express app as middleware; default port 8080
 - Styling: Tailwind utility classes with custom theme in client/global.css and tailwind.config.js
+
+## API Endpoints
+- GET /health — health probe
+- GET /api/ping
+- GET /api/search/movies
+- GET /api/search/tv
+- GET /api/movie/:id
+- GET /api/tv/:id
+- GET /api/tv/:id/season/:season
+- GET /api/imdb-rating?title=...&year=...
+- GET /api/trending/movies
+- GET /api/trending/tv
+
+## Environment
+Set environment variables for the server:
+- TMDB_API_KEY=your_tmdb_key
+- OMDB_API_KEYS=key1,key2,key3 (comma-separated; automatic failover)
 
 ## Data Model (localStorage)
 Key: onlyseries-bookmarks
@@ -67,6 +85,8 @@ Exported JSON mirrors the above. Import preserves franchise/watchStatus and back
   - Calls Express proxy for TMDB/OMDb
 - server/index.js and server/routes/tmdb-proxy.js
   - Express server and proxy endpoints
+- server/node-build.js
+  - Serves built SPA and API in production
 
 ## UX Details and Behaviors
 - Mobile top icons: Fixed bar; icons stay on a single line
@@ -88,14 +108,12 @@ Exported JSON mirrors the above. Import preserves franchise/watchStatus and back
 - Pagination uses PAGE_SIZE = 36
 - Page input supports direct navigation (clamped to [1..totalPages])
 
-## Environment
-- Server requires OMDb/TMDB keys (see README’s Environment Variables section)
-- No secrets are committed; set via environment when deploying
-
 ## Development Scripts (npm)
-- npm run dev — Vite dev server (with Express middleware)
+- npm run dev — Vite dev server (Express middleware, default port 8080)
 - npm run build — Build client and server bundles
 - npm start — Run built server
+- npm test — Vitest test suite
+- npm run format.fix — Prettier formatting
 
 ## Recent Changes (Highlights)
 - Top actions: single-line mobile fix

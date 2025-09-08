@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
-import { Download, Upload, ArrowDown, ArrowUp, Filter, Share2, Eye, EyeOff, ArrowUpDown } from "lucide-react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { MoreHorizontal, ArrowUp, Filter, Share2, Eye, EyeOff, ArrowUpDown, RefreshCw, Tv, Play } from "lucide-react";
 import SearchBar from "../components/SearchBar";
 import Timer from "../components/Timer";
 import BookmarksGrid from "../components/BookmarksGrid";
@@ -13,12 +13,16 @@ import {
   DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
 
+import { getMovieDetails, getTVDetails, getIMDbRating } from "../lib/api";
+import ConfirmDialog from "../components/ConfirmDialog";
+
 export default function Index() {
   const [bookmarks, setBookmarks] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [backgroundImage, setBackgroundImage] = useState("");
   const [watchFilter, setWatchFilter] = useState("all"); // "all", "watched", "unwatched"
+  const [typeFilter, setTypeFilter] = useState("all"); // "all", "movie", "tv"
   const [shareToast, setShareToast] = useState(false);
   const [sortType, setSortType] = useState("time_desc");
   const [selectionMode, setSelectionMode] = useState(false);
@@ -26,6 +30,40 @@ export default function Index() {
   const [showFranchiseDialog, setShowFranchiseDialog] = useState(false);
   const [franchiseName, setFranchiseName] = useState("");
   const [franchiseFilter, setFranchiseFilter] = useState("");
+
+  // Diagnostic: missing OMDb/IMDb ratings
+  const [missingRatings, setMissingRatings] = useState([]);
+  const [scanning, setScanning] = useState(false);
+  const [fetchingRatings, setFetchingRatings] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const UI_STATE_KEY = "onlyseries-ui-v1";
+  const fileInputRef = useRef(null);
+
+  // Restore UI state (filters, sort, selection mode) so app returns to last-used view
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(UI_STATE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.watchFilter) setWatchFilter(parsed.watchFilter);
+        if (parsed.typeFilter) setTypeFilter(parsed.typeFilter);
+        if (parsed.sortType) setSortType(parsed.sortType);
+        if (typeof parsed.selectionMode === "boolean") setSelectionMode(parsed.selectionMode);
+      }
+    } catch (e) {
+      console.warn("Failed to restore UI state", e);
+    }
+  }, []);
+
+  // Persist UI state whenever relevant values change
+  useEffect(() => {
+    try {
+      const toSave = { watchFilter, typeFilter, sortType, selectionMode };
+      localStorage.setItem(UI_STATE_KEY, JSON.stringify(toSave));
+    } catch (e) {
+      // ignore
+    }
+  }, [watchFilter, typeFilter, sortType, selectionMode]);
 
   const franchiseCounts = useMemo(() => {
     const map = new Map();
@@ -100,6 +138,123 @@ export default function Index() {
     }
   }, [bookmarks]);
 
+  // Enrich bookmarks with accurate runtimes/episode counts from TMDb when missing
+  useEffect(() => {
+    let cancelled = false;
+
+    const needsEnrichment = bookmarks.some((b) => {
+      if (b.type === "movie") {
+        // Enrich when runtime missing OR imdbRating missing/unknown
+        return (!b.runtime || b.runtime <= 0) || (!b.imdbRating || b.imdbRating === "N/A");
+      }
+      if (b.type === "tv") {
+        // Enrich when episodes/runtime or imdbRating missing
+        return (!Number.isFinite(b.episodes) || !Number.isFinite(b.averageEpisodeRuntime)) || (!b.imdbRating || b.imdbRating === "N/A");
+      }
+      return false;
+    });
+
+    if (!needsEnrichment) return;
+
+    const enrich = async () => {
+      try {
+        const updated = await Promise.all(
+          bookmarks.map(async (b) => {
+            if (b.type === "movie") {
+              const details = await getMovieDetails(b.id).catch(() => null);
+              const runtime = details?.runtime || b.runtime || 120;
+
+              let imdbRating = b.imdbRating;
+              // If missing or N/A, try OMDb via proxy (prefer imdbId then title)
+              if (!imdbRating || imdbRating === "N/A") {
+                try {
+                  const imdbId = details?.external_ids?.imdb_id;
+                  const year = details?.release_date ? new Date(details.release_date).getFullYear().toString() : b.year;
+                  const omdbRating = await getIMDbRating({ imdbId, title: details?.title || b.title, year });
+                  if (omdbRating && omdbRating !== "N/A") {
+                    imdbRating = omdbRating;
+                  } else {
+                    // Fallback to TMDb vote_average
+                    const tmdbRating = typeof details?.vote_average === 'number' ? String(details.vote_average.toFixed(1)) : undefined;
+                    imdbRating = tmdbRating || (b.imdbRating || "N/A");
+                  }
+                } catch (e) {
+                  const tmdbRating = typeof details?.vote_average === 'number' ? String(details.vote_average.toFixed(1)) : undefined;
+                  imdbRating = tmdbRating || (b.imdbRating || "N/A");
+                }
+              }
+
+              return { ...b, runtime, imdbRating };
+            }
+
+            if (b.type === "tv") {
+              const details = await getTVDetails(b.id).catch(() => null);
+              const numEpisodes = Number.isFinite(details?.number_of_episodes) ? details.number_of_episodes : (Number.isFinite(b.episodes) ? b.episodes : (b.seasons || 1) * 10);
+
+              let avgRuntime = b.averageEpisodeRuntime;
+              const epRunArr = details?.episode_run_time || b.episode_run_time || [];
+              if (!Number.isFinite(avgRuntime)) {
+                if (Array.isArray(epRunArr) && epRunArr.length > 0) {
+                  avgRuntime = Math.round(epRunArr.reduce((a, c) => a + c, 0) / epRunArr.length);
+                } else if (Number.isFinite(details?.episode_run_time)) {
+                  avgRuntime = details.episode_run_time;
+                } else {
+                  avgRuntime = 45; // sensible fallback
+                }
+              }
+
+              let imdbRating = b.imdbRating;
+              try {
+                if (!imdbRating || imdbRating === "N/A") {
+                  const imdbId = details?.external_ids?.imdb_id;
+                  const year = details?.first_air_date ? new Date(details.first_air_date).getFullYear().toString() : b.year;
+                  const omdbRating = await getIMDbRating({ imdbId, title: details?.name || b.title, year });
+                  if (omdbRating && omdbRating !== "N/A") {
+                    imdbRating = omdbRating;
+                  }
+                }
+              } catch (e) {
+                // ignore and fallback
+              }
+
+              const tmdbRating = typeof details?.vote_average === 'number' ? String(details.vote_average.toFixed(1)) : undefined;
+
+              const enriched = {
+                ...b,
+                episodes: numEpisodes,
+                averageEpisodeRuntime: avgRuntime,
+                episode_run_time: epRunArr,
+                imdbRating: (!imdbRating || imdbRating === "N/A") ? (tmdbRating || b.imdbRating || "N/A") : imdbRating,
+              };
+
+              return enriched;
+            }
+
+            return b;
+          }),
+        );
+
+        if (!cancelled) {
+          // Only update if any changes detected to avoid infinite loop
+          const changed = updated.some((u, i) => {
+            const orig = bookmarks[i];
+            return u.runtime !== orig.runtime || u.episodes !== orig.episodes || u.averageEpisodeRuntime !== orig.averageEpisodeRuntime || u.imdbRating !== orig.imdbRating;
+          });
+          if (changed) setBookmarks(updated);
+        }
+      } catch (e) {
+        console.error("Failed enriching bookmarks:", e);
+      }
+    };
+
+    enrich();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bookmarks]);
+
+
 
   const handleAddBookmark = (item) => {
     // Check if item already exists
@@ -156,7 +311,8 @@ export default function Index() {
   };
 
   const uploadBookmarks = (event) => {
-    const file = event.target.files?.[0];
+    const inputEl = event.target;
+    const file = inputEl?.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -172,17 +328,21 @@ export default function Index() {
           }
         } catch (error) {
           console.error("Error parsing uploaded file:", error);
+        } finally {
+          if (inputEl) inputEl.value = "";
         }
       };
       reader.readAsText(file);
+    } else {
+      if (inputEl) inputEl.value = "";
     }
   };
 
-  // Filter bookmarks based on watch status
+  // Filter bookmarks based on watch status and type (movie/tv)
   const filteredBookmarks = bookmarks.filter(item => {
-    if (watchFilter === "all") return true;
-    if (watchFilter === "watched") return item.watchStatus === "watched";
-    if (watchFilter === "unwatched") return item.watchStatus !== "watched";
+    if (watchFilter === "watched" && item.watchStatus !== "watched") return false;
+    if (watchFilter === "unwatched" && item.watchStatus === "watched") return false;
+    if (typeFilter && typeFilter !== "all" && item.type !== typeFilter) return false;
     return true;
   });
 
@@ -221,6 +381,7 @@ export default function Index() {
 
           {/* Import/Export and Filter Controls - Fixed position */}
           <div className="fixed top-4 left-1/2 -translate-x-1/2 md:top-6 md:right-6 md:left-auto md:translate-x-0 z-50 flex gap-2 justify-center">
+            <input ref={fileInputRef} type="file" accept=".json" onChange={uploadBookmarks} className="hidden" />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -264,6 +425,33 @@ export default function Index() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
+                  className={`p-2 md:p-3 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50 relative ${
+                    typeFilter === "all" ? "bg-card/80" : typeFilter === "movie" ? "bg-blue-500/80" : "bg-purple-500/80"
+                  }`}
+                  title="Filter type"
+                >
+                  <Tv className="w-4 h-4 md:w-5 md:h-5" />
+                  {typeFilter !== "all" && (
+                    <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-primary"></div>
+                  )}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem onClick={() => setTypeFilter("all")} className={typeFilter === "all" ? "bg-accent" : ""}>
+                  All
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTypeFilter("movie")} className={typeFilter === "movie" ? "bg-blue-500/20 text-blue-400" : ""}>
+                  Movies
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTypeFilter("tv")} className={typeFilter === "tv" ? "bg-purple-500/20 text-purple-400" : ""}>
+                  Series
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
                   className="p-2 md:p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50"
                   title="Sort"
                 >
@@ -297,26 +485,84 @@ export default function Index() {
             >
               <Share2 className="w-4 h-4 md:w-5 md:h-5" />
             </button>
-            <button
-              onClick={downloadBookmarks}
-              disabled={!hasBookmarks}
-              className="p-2 md:p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg border border-border/50"
-              title="Download Bookmarks"
-            >
-              <ArrowDown className="w-4 h-4 md:w-5 md:h-5" />
-            </button>
-            <label
-              className="p-2 md:p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors cursor-pointer shadow-lg border border-border/50"
-              title="Upload Bookmarks"
-            >
-              <ArrowUp className="w-4 h-4 md:w-5 md:h-5" />
-              <input
-                type="file"
-                accept=".json"
-                onChange={uploadBookmarks}
-                className="hidden"
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="p-2 md:p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50"
+                  title="More"
+                >
+                  <MoreHorizontal className="w-4 h-4 md:w-5 md:h-5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem
+                  onClick={() => {
+                    navigator.clipboard.writeText(window.location.href);
+                    setShareToast(true);
+                    setTimeout(() => setShareToast(false), 3000);
+                  }}
+                >
+                  Share Website
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={downloadBookmarks} className={!hasBookmarks ? "opacity-50" : ""}>
+                  Download Bookmarks
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    if (fileInputRef.current) fileInputRef.current.click();
+                  }}
+                >
+                  <div className="w-full flex items-center gap-2">
+                    <ArrowUp className="w-4 h-4" />
+                    Upload Bookmarks
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowResetConfirm(true)}>
+                  Reset app and clear bookmarks
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Themed reset confirmation dialog */}
+            {showResetConfirm && (
+              <ConfirmDialog
+                isOpen={showResetConfirm}
+                title="Reset Application"
+                message="This will clear all bookmarks and return the app to a fresh state. Are you sure?"
+                confirmText="Reset"
+                cancelText="Cancel"
+                onCancel={() => setShowResetConfirm(false)}
+                onConfirm={() => {
+                  try {
+                    localStorage.removeItem("onlyseries-bookmarks");
+                    localStorage.removeItem("onlyseries-franchise-migrated-v1");
+                    localStorage.removeItem(UI_STATE_KEY);
+                  } catch (e) {
+                    console.warn("Failed clearing localStorage during reset", e);
+                  }
+
+                  // Reset UI state
+                  setBookmarks([]);
+                  setBackgroundImage("");
+                  setSelectedItem(null);
+                  setDialogOpen(false);
+                  setWatchFilter("all");
+                  setShareToast(false);
+                  setSortType("time_desc");
+                  setSelectionMode(false);
+                  setSelectedKeys([]);
+                  setShowFranchiseDialog(false);
+                  setFranchiseName("");
+                  setFranchiseFilter("");
+                  setMissingRatings([]);
+
+                  setShowResetConfirm(false);
+                  setTimeout(() => window.location.reload(), 200);
+                }}
               />
-            </label>
+            )}
           </div>
 
           {/* Search Bar */}
@@ -399,6 +645,66 @@ export default function Index() {
               </div>
             </div>
           ) : null}
+
+          {/* Missing ratings panel */}
+          {missingRatings && missingRatings.length > 0 && (
+            <div className="fixed left-4 bottom-4 z-50 w-80 bg-card/95 border border-border rounded-lg p-3 shadow-2xl">
+              <div className="flex justify-between items-center mb-2">
+                <div className="font-semibold">Missing IMDb Ratings</div>
+                <button onClick={() => setMissingRatings([])} className="text-sm text-muted-foreground">Close</button>
+              </div>
+              <div className="text-sm max-h-48 overflow-auto mb-2">
+                {missingRatings.map((m) => (
+                  <div key={`${m.type}-${m.id}`} className="py-1">{m.title} <span className="text-muted-foreground">({m.type})</span></div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    setFetchingRatings(true);
+                    try {
+                      const updated = [...bookmarks];
+                      for (const m of missingRatings) {
+                        const idx = updated.findIndex((b) => b.id === m.id && b.type === m.type);
+                        if (idx === -1) continue;
+                        try {
+                          if (m.type === "movie") {
+                            const details = await getMovieDetails(m.id).catch(() => null);
+                            const imdbId = details?.external_ids?.imdb_id;
+                            const year = details?.release_date ? new Date(details.release_date).getFullYear().toString() : undefined;
+                            const omdbRating = await getIMDbRating({ imdbId, title: details?.title || m.title, year });
+                            if (omdbRating && omdbRating !== "N/A") {
+                              updated[idx] = { ...updated[idx], imdbRating: omdbRating };
+                            }
+                          } else {
+                            const details = await getTVDetails(m.id).catch(() => null);
+                            const imdbId = details?.external_ids?.imdb_id;
+                            const year = details?.first_air_date ? new Date(details.first_air_date).getFullYear().toString() : undefined;
+                            const omdbRating = await getIMDbRating({ imdbId, title: details?.name || m.title, year });
+                            if (omdbRating && omdbRating !== "N/A") {
+                              updated[idx] = { ...updated[idx], imdbRating: omdbRating };
+                            }
+                          }
+                        } catch (err) {
+                          // ignore per-item errors
+                        }
+                      }
+                      setBookmarks(updated);
+                      const missing = updated.filter((b) => !b.imdbRating || b.imdbRating === "N/A").map((b) => ({ id: b.id, title: b.title, type: b.type }));
+                      setMissingRatings(missing);
+                    } finally {
+                      setFetchingRatings(false);
+                    }
+                  }}
+                  className="px-3 py-1 rounded-md bg-primary text-primary-foreground disabled:opacity-50"
+                >
+                  {fetchingRatings ? "Fetching..." : "Fetch Now"}
+                </button>
+
+                <button onClick={() => { setMissingRatings([]); }} className="px-3 py-1 rounded-md bg-card border border-border">Dismiss</button>
+              </div>
+            </div>
+          )}
 
           {/* Dialog Box */}
           <DialogBox

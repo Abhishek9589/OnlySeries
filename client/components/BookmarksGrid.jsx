@@ -75,7 +75,7 @@ function PaginationControlsBar({
             Next
           </button>
         </div>
-        <div className="flex justify-end items-center gap-2">
+        <div className="hidden lg:flex justify-end items-center gap-2">
           <button
             onClick={() => setExpanded((v) => !v)}
             className="p-2 rounded-full bg-card border border-border text-foreground hover:bg-card/80 transition-colors"
@@ -196,7 +196,7 @@ export default function BookmarksGrid({
 
   const formatWatchTime = (item) => {
     if (item.type === "movie") {
-      const totalMinutes = item.runtime || 120;
+      const totalMinutes = Number.isFinite(item.runtime) ? item.runtime : 120;
       const days = Math.floor(totalMinutes / (24 * 60));
       const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
       const minutes = totalMinutes % 60;
@@ -207,8 +207,26 @@ export default function BookmarksGrid({
         return `${hours}h ${minutes}m`;
       }
     } else {
-      const episodeCount = item.episodes || (item.seasons || 1) * 10;
-      const totalMinutes = episodeCount * 45;
+      // TV show: prefer explicit episodes and averageEpisodeRuntime
+      const episodeCount = Number.isFinite(item.episodes)
+        ? item.episodes
+        : Number.isFinite(item.number_of_episodes)
+        ? item.number_of_episodes
+        : (item.seasons || 1) * 10;
+
+      // Determine per-episode runtime from multiple possible fields
+      let epRuntime = undefined;
+      if (Number.isFinite(item.averageEpisodeRuntime)) {
+        epRuntime = item.averageEpisodeRuntime;
+      } else if (Array.isArray(item.episode_run_time) && item.episode_run_time.length > 0) {
+        epRuntime = Math.round(item.episode_run_time.reduce((a, c) => a + c, 0) / item.episode_run_time.length);
+      } else if (Number.isFinite(item.episode_run_time)) {
+        epRuntime = item.episode_run_time;
+      } else {
+        epRuntime = 45; // fallback
+      }
+
+      const totalMinutes = episodeCount * epRuntime;
       const days = Math.floor(totalMinutes / (24 * 60));
       const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
       const minutes = totalMinutes % 60;

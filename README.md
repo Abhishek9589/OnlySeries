@@ -16,34 +16,43 @@ A fast, client-first web app to search, bookmark, group, and track movies/TV sho
 - Series matrix: Stable grid with x-axis scroll for episodes and y-axis scroll for seasons; scrollbars appear only when overflow
 
 ## Tech Stack
-- React 18 + Vite (dev/build)
+- React 18 + Vite (dev/build). Vite dev server mounts the Express API as middleware.
 - Tailwind CSS + Radix primitives + lucide-react icons
 - Express API (server) with TMDB + OMDb proxy and key rotation
 - GSAP for small entrance animations
 
-## Usage
-- Add items: Use the main search at the top to add movies/series. Click a suggestion to add.
-- In-library search: On the pagination bar, click the search icon to expand a compact search. Typing shows live results below the input without changing the grid; results respect the current All/Watched/Will Watch filter. Click again (or Esc) to collapse.
-- Franchise toggle: On a franchise card (hover) and in the franchise dialog, the watch toggle applies to all movies in that franchise at once and updates immediately.
-- Detail dialogs: Movie dialogs are compact and avoid scrolling on mobile/desktop while still showing title, year, type, IMDb rating, toggle, runtime, delete, and poster.
-- Series matrix: Scroll horizontally to see more episodes and vertically to see more seasons; scrollbars appear only when there’s overflow.
-- Top actions: On mobile, top-right actions/icons stay on a single row.
+## Quick Start
+- npm install
+- npm run dev — Vite dev server (default http://localhost:8080); API available at /api/* via Express middleware
+- npm run build && npm start — Build SPA + server and serve production bundle
 
 ## Scripts
-- dev: vite (client dev server)
+- dev: vite (client dev server with Express middleware)
 - build: vite build (client) + vite build --config vite.config.server.js (server)
 - start: node dist/server/node-build.mjs (serve built app + API)
 - test: vitest --run
+- format.fix: prettier --write .
 
-Use npm:
-- npm install
-- npm run dev (client dev)
-- npm run build && npm start (full production build + server)
+## API Endpoints (server)
+- GET /health — health probe
+- GET /api/ping
+- GET /api/search/movies
+- GET /api/search/tv
+- GET /api/movie/:id
+- GET /api/tv/:id
+- GET /api/tv/:id/season/:season
+- GET /api/imdb-rating?title=...&year=...
+- GET /api/trending/movies
+- GET /api/trending/tv
 
 ## Environment Variables (server)
-Create a .env (not committed) for server builds:
+Create a .env (not committed) or set env vars for production:
 - TMDB_API_KEY=your_tmdb_key
 - OMDB_API_KEYS=key1,key2,key3  (comma-separated; automatic failover)
+
+## Testing & Formatting
+- Run tests: npm test
+- Format code: npm run format.fix
 
 ## Data Model (localStorage)
 Key: onlyseries-bookmarks
@@ -67,7 +76,7 @@ This section walks through the codebase so a newcomer can understand what each f
 
 ## Root
 - package.json: Project metadata and scripts. Notable scripts: dev (client dev with Vite), build (client+server), start (runs built server). Dependencies include React, Tailwind, Express, dotenv, GSAP, Radix, lucide-react.
-- vite.config.js: Vite config for the client build/dev server.
+- vite.config.js: Vite config for the client build/dev server. During dev, Express is mounted as middleware; default port 8080.
 - vite.config.server.js: Vite config for bundling the Express server (SSR/API bundle in dist/server/).
 - tailwind.config.js: Tailwind theme and content scanning (client/**/*.{js,jsx}); custom colors, animations, and CSS variables.
 - postcss.config.js: Tailwind + autoprefixer config for CSS processing.
@@ -75,13 +84,9 @@ This section walks through the codebase so a newcomer can understand what each f
 - components.json: Radix UI/shadcn component settings (used for consistent styles).
 
 ## server/
-- index.js: Express app with CORS and JSON; mounts routes from routes/tmdb-proxy.js; exposes endpoints used by the client:
-  - GET /api/imdb-rating?title=...&year=...
-  - GET /api/tv/:id/season/:season
-- routes/tmdb-proxy.js: Implements TMDB and OMDb proxy logic.
-  - getTVSeason: Fetches TMDB season details by tv id and season number.
-  - getIMDbRating: Queries OMDb with automatic key rotation and basic error handling; returns { imdbRating, imdbID }.
-- node-build.js: Helper for node build output (entry used by start script after build).
+- index.js: Express app with CORS and JSON; mounts routes from routes/tmdb-proxy.js; exposes endpoints used by the client (see API Endpoints).
+- routes/tmdb-proxy.js: Implements TMDB and OMDb proxy logic. Includes OMDb key rotation and season/TV detail helpers.
+- node-build.js: Serves the built SPA and API in production.
 
 ## client/
 ### App & Pages

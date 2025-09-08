@@ -103,9 +103,9 @@ const SearchBar = memo(function SearchBar({
         title: movie.title,
         year: movie.release_date ? new Date(movie.release_date).getFullYear().toString() : "",
         poster: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null,
-        imdbRating: "N/A",
+        imdbRating: typeof movie.vote_average === 'number' ? String(movie.vote_average.toFixed(1)) : "N/A",
         type: "movie",
-        runtime: 120,
+        runtime: movie.runtime || 120,
       };
     }
     const series = entry.raw;
@@ -114,10 +114,10 @@ const SearchBar = memo(function SearchBar({
       title: series.name,
       year: series.first_air_date ? new Date(series.first_air_date).getFullYear().toString() : "",
       poster: series.poster_path ? `https://image.tmdb.org/t/p/w500${series.poster_path}` : null,
-      imdbRating: "N/A",
+      imdbRating: typeof series.vote_average === 'number' ? String(series.vote_average.toFixed(1)) : "N/A",
       type: "tv",
-      seasons: 1,
-      episodes: 10,
+      seasons: series.number_of_seasons || 1,
+      episodes: series.number_of_episodes || 10,
     };
   };
 
@@ -175,12 +175,13 @@ const SearchBar = memo(function SearchBar({
           const movie = entry.raw;
           try {
             const year = new Date(movie.release_date).getFullYear().toString();
-            const [details, imdbRating] = await Promise.allSettled([
-              getMovieDetails(movie.id),
-              getIMDbRating(movie.title, year),
-            ]);
-            const movieDetails = details.status === "fulfilled" ? details.value : null;
-            const rating = imdbRating.status === "fulfilled" ? imdbRating.value : "N/A";
+            const movieDetails = await getMovieDetails(movie.id).catch(() => null);
+            const imdbId = movieDetails?.external_ids?.imdb_id || undefined;
+            let rating = await getIMDbRating({ imdbId, title: movie.title, year }).catch(() => "N/A");
+            // Fallback to TMDb vote_average if OMDb had no rating
+            if ((rating === "N/A" || rating == null) && typeof movieDetails?.vote_average === "number") {
+              rating = String(movieDetails.vote_average.toFixed(1));
+            }
             return {
               id: movie.id,
               title: movie.title,
@@ -188,7 +189,7 @@ const SearchBar = memo(function SearchBar({
               poster: `https://image.tmdb.org/t/p/w500${movie.poster_path}`,
               imdbRating: rating,
               type: "movie",
-              runtime: movieDetails?.runtime || 120,
+              runtime: movieDetails?.runtime || movie.runtime || 120,
             };
           } catch {
             return toUnifiedItem({ kind: "movie", raw: movie });
@@ -197,12 +198,12 @@ const SearchBar = memo(function SearchBar({
           const series = entry.raw;
           try {
             const year = new Date(series.first_air_date).getFullYear().toString();
-            const [details, imdbRating] = await Promise.allSettled([
-              getTVDetails(series.id),
-              getIMDbRating(series.name, year),
-            ]);
-            const seriesDetails = details.status === "fulfilled" ? details.value : null;
-            const rating = imdbRating.status === "fulfilled" ? imdbRating.value : "N/A";
+            const seriesDetails = await getTVDetails(series.id).catch(() => null);
+            const imdbId = seriesDetails?.external_ids?.imdb_id || undefined;
+            let rating = await getIMDbRating({ imdbId, title: series.name, year }).catch(() => "N/A");
+            if ((rating === "N/A" || rating == null) && typeof seriesDetails?.vote_average === "number") {
+              rating = String(seriesDetails.vote_average.toFixed(1));
+            }
             return {
               id: series.id,
               title: series.name,
@@ -210,8 +211,8 @@ const SearchBar = memo(function SearchBar({
               poster: `https://image.tmdb.org/t/p/w500${series.poster_path}`,
               imdbRating: rating,
               type: "tv",
-              seasons: seriesDetails?.number_of_seasons || 1,
-              episodes: seriesDetails?.number_of_episodes || 10,
+              seasons: seriesDetails?.number_of_seasons || series.number_of_seasons || 1,
+              episodes: seriesDetails?.number_of_episodes || series.number_of_episodes || 10,
             };
           } catch {
             return toUnifiedItem({ kind: "tv", raw: series });

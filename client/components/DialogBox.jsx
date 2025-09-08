@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { X, Clock, Star, Film, Tv, Calendar, Eye, Check, EyeOff } from "lucide-react";
 import { gsap } from "gsap";
 import EpisodeRatingGrid from "./EpisodeRatingGrid";
@@ -55,6 +55,19 @@ export default function DialogBox({
   };
 
   if (!isOpen || !item) return null;
+
+  // For TV shows (non-franchise), render the fullscreen EpisodeRatingGrid overlay directly
+  if (item.type === "tv" && !item.franchise) {
+    return (
+      <EpisodeRatingGrid
+        tvId={item.id}
+        seasons={item.seasons || 1}
+        fullScreen={true}
+        title={item.franchise || item.title}
+        onCloseFullScreen={() => onClose && onClose()}
+      />
+    );
+  }
 
   const isCompactMobileMovie = isMobile && item.type === "movie" && !item.franchise;
   const isCompactDesktopMovie = !isMobile && item.type === "movie" && !item.franchise;
@@ -386,10 +399,10 @@ export default function DialogBox({
 
                   {/* Episode Ratings Grid */}
                   <div className="space-y-4">
-                    <h3 className="text-xl font-semibold text-foreground">
-                      Episode Ratings
-                    </h3>
-                    <EpisodeRatingGrid tvId={item.id} seasons={item.seasons || 1} />
+                    <div className="flex items-center justify-between">
+                    <h3 className="text-xl font-semibold text-foreground">Episode Ratings</h3>
+                    </div>
+                  <EpisodeRatingGrid tvId={item.id} seasons={item.seasons || 1} />
                   </div>
                 </div>
               )}

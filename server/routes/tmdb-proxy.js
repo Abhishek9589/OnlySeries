@@ -134,6 +134,7 @@ export const getMovieDetails = async (req, res) => {
       {
         params: {
           api_key: TMDB_API_KEY,
+          append_to_response: "external_ids",
         },
       },
     );
@@ -156,6 +157,7 @@ export const getTVDetails = async (req, res) => {
     const response = await axios.get(`https://api.themoviedb.org/3/tv/${id}`, {
       params: {
         api_key: TMDB_API_KEY,
+        append_to_response: "external_ids",
       },
     });
 
@@ -195,14 +197,14 @@ export const getTVSeason = async (req, res) => {
 // Proxy for OMDb API with automatic key rotation
 export const getIMDbRating = async (req, res) => {
   try {
-    const { title, year } = req.query;
-    if (!title) {
-      return res.status(400).json({ error: "Title parameter is required" });
+    const { title, year, imdbId } = req.query;
+    if (!title && !imdbId) {
+      return res.status(400).json({ error: "Title or IMDb ID parameter is required" });
     }
 
     let lastError = null;
     let attemptsCount = 0;
-    const maxAttempts = Math.min(OMDB_API_KEYS.length, 3); // Try up to 3 different keys
+    const maxAttempts = OMDB_API_KEYS.length; // Try all available keys
 
     while (attemptsCount < maxAttempts) {
       const currentKey = getNextOmdbApiKey();
@@ -214,8 +216,9 @@ export const getIMDbRating = async (req, res) => {
         const response = await axios.get(`https://www.omdbapi.com/`, {
           params: {
             apikey: currentKey,
-            t: title,
-            y: year,
+            i: imdbId || undefined,
+            t: imdbId ? undefined : title,
+            y: imdbId ? undefined : year,
           },
           timeout: 5000, // 5 second timeout
         });
