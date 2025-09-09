@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { MoreHorizontal, ArrowUp, Filter, Share2, Eye, EyeOff, ArrowUpDown, RefreshCw, Tv, Play } from "lucide-react";
+import { MoreHorizontal, Filter, Eye, EyeOff, ArrowUpDown, RefreshCw, Tv, Play } from "lucide-react";
 import SearchBar from "../components/SearchBar";
 import Timer from "../components/Timer";
 import BookmarksGrid from "../components/BookmarksGrid";
@@ -126,6 +126,26 @@ export default function Index() {
       setBookmarks(withAdded);
     }
   }, [bookmarks]);
+
+  // Lock main page scroll when any dialog or modal is open so only the modal scrollbar is used
+  useEffect(() => {
+    const anyOpen = dialogOpen || showFranchiseDialog || showResetConfirm;
+    if (typeof document === 'undefined') return;
+    if (anyOpen) {
+      // remember previous overflow
+      document.body.dataset._prevOverflow = document.body.style.overflow || '';
+      document.body.style.overflow = 'hidden';
+    } else {
+      const prev = document.body.dataset._prevOverflow || '';
+      document.body.style.overflow = prev;
+      delete document.body.dataset._prevOverflow;
+    }
+    return () => {
+      const prev = document.body.dataset._prevOverflow || '';
+      document.body.style.overflow = prev;
+      delete document.body.dataset._prevOverflow;
+    };
+  }, [dialogOpen, showFranchiseDialog, showResetConfirm]);
 
   // Save bookmarks to localStorage whenever bookmarks change
   useEffect(() => {
@@ -474,17 +494,6 @@ export default function Index() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(window.location.href);
-                setShareToast(true);
-                setTimeout(() => setShareToast(false), 3000);
-              }}
-              className="p-2 md:p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50"
-              title="Share Website"
-            >
-              <Share2 className="w-4 h-4 md:w-5 md:h-5" />
-            </button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -514,13 +523,10 @@ export default function Index() {
                     if (fileInputRef.current) fileInputRef.current.click();
                   }}
                 >
-                  <div className="w-full flex items-center gap-2">
-                    <ArrowUp className="w-4 h-4" />
-                    Upload Bookmarks
-                  </div>
+                  Upload Bookmarks
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setShowResetConfirm(true)}>
-                  Reset app and clear bookmarks
+                  Reset All
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -573,7 +579,7 @@ export default function Index() {
           {/* Timer - Only shown when there are bookmarks */}
           {hasBookmarks && (
             <div className="text-center mb-12">
-              <Timer bookmarks={bookmarks} watchFilter={watchFilter} />
+              <Timer bookmarks={bookmarks} watchFilter={watchFilter} typeFilter={typeFilter} />
             </div>
           )}
 
@@ -739,97 +745,86 @@ export default function Index() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60" onClick={() => setShowFranchiseDialog(false)} />
           <div className="relative w-full max-w-2xl bg-card/95 backdrop-blur-md border border-border/50 rounded-2xl p-6 shadow-2xl">
-            <h3 className="text-lg font-semibold mb-3 text-foreground">Name the Franchise</h3>
-            <p className="text-sm text-muted-foreground mb-4">Enter a name or choose an existing franchise.</p>
+            <input
+              value={franchiseFilter}
+              onChange={(e) => setFranchiseFilter(e.target.value)}
+              placeholder="Search or add franchise..."
+              className="w-full mb-3 px-3 py-2 rounded-md bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              autoFocus
+            />
 
-            {/* Existing Franchises */}
-            {franchiseCounts.length > 0 && (
-              <div className="mb-4">
-                <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Existing</div>
-                <input
-                  value={franchiseFilter}
-                  onChange={(e) => setFranchiseFilter(e.target.value)}
-                  placeholder="Filter franchises"
-                  className="w-full mb-3 px-3 py-2 rounded-md bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-                <div className="max-h-72 overflow-y-auto rounded-md border border-border/40 p-2 bg-background/60">
-                  <div className="grid grid-cols-5 sm:grid-cols-6 gap-2">
+            <div className="max-h-72 overflow-y-auto rounded-md border border-border/40 p-2 bg-background/60">
+              {franchiseFilter.trim().length >= 2 ? (
+                franchiseCounts.filter(({ name }) => name.toLowerCase().includes(franchiseFilter.trim().toLowerCase())).length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {franchiseCounts
                       .filter(({ name }) => name.toLowerCase().includes(franchiseFilter.trim().toLowerCase()))
-                      .map(({ name }) => {
-                        const label = name.length > 12 ? name.slice(0, 9) + "....." : name;
-                        return (
-                          <button
-                            key={name}
-                            onClick={() => setFranchiseName((prev) => (prev === name ? "" : name))}
-                            className={`w-full text-left px-2.5 py-1 rounded-full border text-xs whitespace-nowrap overflow-hidden ${franchiseName === name ? "bg-primary text-primary-foreground border-primary" : "bg-card/60 border-border text-foreground hover:bg-card"}`}
-                            title={name}
-                          >
-                            <span className="block truncate">{label}</span>
-                          </button>
-                        );
-                      })}
+                      .map(({ name }) => (
+                        <button
+                          key={name}
+                          onClick={() => {
+                            const selectedName = name;
+                            // apply franchise to selected movies
+                            setBookmarks((prev) =>
+                              prev.map((it) => {
+                                const key = `${it.type}-${it.id}`;
+                                if (it.type === "movie" && selectedKeys.includes(key)) {
+                                  return { ...it, franchise: selectedName };
+                                }
+                                return it;
+                              })
+                            );
+                            setFranchiseFilter("");
+                            setSelectedKeys([]);
+                            setSelectionMode(false);
+                            setShowFranchiseDialog(false);
+                          }}
+                          className="w-full text-left px-3 py-2 rounded-md bg-card/60 border border-border text-foreground hover:bg-card"
+                          title={name}
+                        >
+                          {name}
+                        </button>
+                      ))}
                   </div>
-                </div>
-              </div>
-            )}
+                ) : (
+                  <div className="text-sm text-muted-foreground">No franchises found.</div>
+                )
+              ) : (
+                <div className="text-sm text-muted-foreground">Type at least 2 characters to search</div>
+              )}
+            </div>
 
-            <input
-              value={franchiseName}
-              onChange={(e) => setFranchiseName(e.target.value)}
-              placeholder="Franchise name"
-              className="w-full mb-4 px-3 py-2 rounded-md bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  const name = franchiseName.trim();
-                  if (!name) return;
-                  setBookmarks((prev) =>
-                    prev.map((it) => {
-                      const key = `${it.type}-${it.id}`;
-                      if (it.type === "movie" && selectedKeys.includes(key)) {
-                        return { ...it, franchise: name };
-                      }
-                      return it;
-                    })
-                  );
-                  setFranchiseName("");
-                  setSelectedKeys([]);
-                  setSelectionMode(false);
-                  setShowFranchiseDialog(false);
-                }
-              }}
-            />
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end gap-2 mt-3">
               <button
-                onClick={() => {
-                  setShowFranchiseDialog(false);
-                }}
+                onClick={() => setShowFranchiseDialog(false)}
                 className="px-4 py-2 rounded-md bg-card border border-border text-foreground hover:bg-card/80 transition-colors"
               >
                 Cancel
               </button>
-              <button
-                onClick={() => {
-                  const name = franchiseName.trim();
-                  if (!name) return;
-                  setBookmarks((prev) =>
-                    prev.map((it) => {
-                      const key = `${it.type}-${it.id}`;
-                      if (it.type === "movie" && selectedKeys.includes(key)) {
-                        return { ...it, franchise: name };
-                      }
-                      return it;
-                    })
-                  );
-                  setFranchiseName("");
-                  setSelectedKeys([]);
-                  setSelectionMode(false);
-                  setShowFranchiseDialog(false);
-                }}
-                className="px-4 py-2 rounded-md bg-primary text-primary-foreground"
-              >
-                Apply
-              </button>
+
+              {franchiseFilter.trim().length >= 2 && (
+                <button
+                  onClick={() => {
+                    const name = franchiseFilter.trim();
+                    setBookmarks((prev) =>
+                      prev.map((it) => {
+                        const key = `${it.type}-${it.id}`;
+                        if (it.type === "movie" && selectedKeys.includes(key)) {
+                          return { ...it, franchise: name };
+                        }
+                        return it;
+                      })
+                    );
+                    setFranchiseFilter("");
+                    setSelectedKeys([]);
+                    setSelectionMode(false);
+                    setShowFranchiseDialog(false);
+                  }}
+                  className="px-4 py-2 rounded-md bg-primary text-primary-foreground"
+                >
+                  Add "{franchiseFilter.trim()}"
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -75,17 +75,17 @@ export default function DialogBox({
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto"
       onClick={handleClose}
     >
       <div
         ref={dialogRef}
         className={
           isCompactMobileMovie
-            ? "bg-card/95 backdrop-blur-md border border-border/50 rounded-2xl w-[calc(100%-2rem)] max-w-sm shadow-2xl"
+            ? "bg-card/95 backdrop-blur-md border border-border/50 rounded-2xl w-[calc(100%-2rem)] max-w-sm max-h-[calc(100vh-2rem)] overflow-y-auto shadow-2xl"
             : isCompactDesktopMovie
-            ? "bg-card/95 backdrop-blur-md border border-border/50 rounded-2xl w-[680px] max-w-[calc(100%-4rem)] shadow-2xl"
-            : "bg-card/95 backdrop-blur-md border border-border/50 rounded-3xl max-w-6xl md:max-h-[90vh] md:overflow-y-auto shadow-2xl"
+            ? "bg-card/95 backdrop-blur-md border border-border/50 rounded-2xl w-[680px] max-w-[calc(100%-4rem)] max-h-[90vh] overflow-y-auto shadow-2xl"
+            : "bg-card/95 backdrop-blur-md border border-border/50 rounded-3xl max-w-6xl max-h-[90vh] overflow-y-auto shadow-2xl"
         }
         onClick={(e) => e.stopPropagation()}
       >
@@ -113,7 +113,7 @@ export default function DialogBox({
                 />
               </div>
               <div className="flex-1 space-y-3">
-                <div className={isCompactMobileMovie ? "flex flex-wrap items-center gap-2 text-xs text-muted-foreground" : "flex flex-wrap items-center gap-3 text-sm text-muted-foreground"}>
+                <div className={isCompactMobileMovie ? "flex items-center gap-2 text-xs text-muted-foreground whitespace-nowrap overflow-x-auto" : "flex items-center gap-3 text-sm text-muted-foreground whitespace-nowrap overflow-x-auto"}>
                   <span className="flex items-center gap-1">
                     <Calendar className={isCompactMobileMovie ? "w-3.5 h-3.5" : "w-4 h-4"} />
                     {item.year}
@@ -191,19 +191,19 @@ export default function DialogBox({
                       {item.franchise || item.title}
                     </h2>
                     <div className="space-y-3">
-                      <div className="flex items-center gap-4 text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-4 h-4" />
+                      <div className="flex items-center gap-3 text-muted-foreground whitespace-nowrap overflow-x-auto">
+                        <span className="flex items-center gap-1 text-xs sm:text-sm">
+                          <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                           {item.year}
                         </span>
-                        <span className="capitalize">
+                        <span className="capitalize text-xs sm:text-sm">
                           {item.franchise
                             ? `${franchiseMovies?.length || 0} movies`
                             : item.type}
                         </span>
                         {item.franchise && franchiseMovies ? (
-                          <span className="flex items-center gap-1 text-primary">
-                            <Star className="w-4 h-4 fill-current" />
+                          <span className="flex items-center gap-1 text-primary text-xs sm:text-sm">
+                            <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
                             {(() => {
                               const validRatings = franchiseMovies
                                 .map((movie) => parseFloat(movie.imdbRating))

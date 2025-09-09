@@ -1,17 +1,16 @@
 import { useMemo } from "react";
-import { Clock } from "lucide-react";
 
-export default function Timer({ bookmarks, watchFilter }) {
+export default function Timer({ bookmarks, watchFilter, typeFilter }) {
   const { totalMinutes, movieCount, seriesCount } = useMemo(() => {
     let movies = 0;
     let series = 0;
 
-    // Filter bookmarks based on watch status for timer calculation
+    // Filter bookmarks based on watch status and type for timer calculation
     const itemsToCount = bookmarks.filter(item => {
-      if (watchFilter === "watched") return item.watchStatus === "watched";
-      if (watchFilter === "unwatched") return item.watchStatus !== "watched";
-      if (watchFilter === "all") return true; // Count ALL items regardless of status
-      return true; // Default: count all items
+      if (watchFilter === "watched" && item.watchStatus !== "watched") return false;
+      if (watchFilter === "unwatched" && item.watchStatus === "watched") return false;
+      if (typeFilter && typeFilter !== "all" && item.type !== typeFilter) return false;
+      return true;
     });
 
     const total = itemsToCount.reduce((total, item) => {
@@ -31,7 +30,7 @@ export default function Timer({ bookmarks, watchFilter }) {
       movieCount: movies,
       seriesCount: series,
     };
-  }, [bookmarks, watchFilter]);
+  }, [bookmarks, watchFilter, typeFilter]);
 
   const formatTime = (minutes) => {
     const MIN_PER_HOUR = 60;
