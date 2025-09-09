@@ -19,10 +19,10 @@ const handleApiError = (error, fallback = null) => {
 };
 
 // Use local API proxy endpoints instead of direct external API calls
-export const getIMDbRating = async (title, year) => {
+export const getIMDbRating = async ({ title, year, imdbId } = {}) => {
   try {
     const response = await axios.get("/api/imdb-rating", {
-      params: { title, year },
+      params: { title, year, imdbId },
       timeout: 10000, // 10 second timeout
     });
     return response.data.imdbRating || "N/A";
