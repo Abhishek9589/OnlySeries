@@ -22,9 +22,9 @@ function PaginationControlsBar({
   useEffect(() => { if (expanded) { inputRef.current?.focus(); } }, [expanded]);
   return (
     <div className="w-full">
-      <div className="grid grid-cols-3 items-center gap-2">
+      <div className="flex items-center gap-2 justify-between">
         <div />
-        <div className="w-full flex flex-wrap items-center justify-center gap-2 sm:gap-3 text-xs sm:text-sm text-muted-foreground">
+        <div className="flex-1 flex items-center justify-center gap-2 sm:gap-3 text-xs sm:text-sm text-muted-foreground">
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage <= 1}
@@ -62,7 +62,7 @@ function PaginationControlsBar({
             }}
             inputMode="numeric"
             pattern="[0-9]*"
-            className="w-14 sm:w-16 text-center px-2 py-1 rounded-md bg-card border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-12 sm:w-16 text-center px-2 py-1 rounded-md bg-card border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             aria-label="Page number"
           />
           <span>of {totalPages}</span>
@@ -75,7 +75,7 @@ function PaginationControlsBar({
             Next
           </button>
         </div>
-        <div className="hidden lg:flex justify-end items-center gap-2">
+        <div className="hidden md:flex justify-end items-center gap-2">
           <button
             onClick={() => setExpanded((v) => !v)}
             className="p-2 rounded-full bg-card border border-border text-foreground hover:bg-card/80 transition-colors"

@@ -1,40 +1,46 @@
 # onlyseries.towatch
 
-A fast, client-first web app to search, bookmark, group, and track movies/TV shows. Includes manual franchise grouping, pagination with jump-to-page, rich search with expandable suggestions (shown only while typing), watch-status filtering, sorting, a watch-time timer, and JSON import/export.
+A fast, client-first web app to search, bookmark, group, and track movies & TV shows. Data is stored locally (localStorage) with import/export to JSON. The app provides a compact UX for mobile and richer tools on larger screens: franchise grouping, series episode matrices, a watch-time timer, and intelligent search behavior.
 
-## Features
-- Bookmarks: Add movies/TV from TMDB search; deduped; persisted to localStorage
-- Manual franchises: Multi-select movies, name/create or add to existing franchise; grouped cards with hover actions; unified franchise toggle (card and dialog) updates all movies at once
-- Pagination: 36 cards per page, page input, Previous/Next, controls shown above and below grid
-- Sorting: A → Z, Z → A, Time added (First → Last / Last → First); applies to franchises and individual items
-- Watch status: Toggle Watched / Will Watch; filter by all/watched/unwatched
-- Search (catalog): Suggestions appear only while typing (min 2 chars), ranked with fuzzy matching and selection boosts; tab filter (All/TV/Movies) with “Show more” beyond 10; offline-aware UX; hides already-added items
-- Search (in-library): Compact icon near pagination expands to a wider search bar; live dropdown results respect the current watch filter; grid remains unchanged; border and focus ring are fully visible (no clipping)
-- Timer: Aggregated watch time (Year:Day:Hr:Min) with counts of movies and series
-- Import/Export: Download current library to JSON (includes franchise, watchStatus, addedAt, etc). Upload restores these
-- Responsive UI: Desktop, tablet, mobile; top actions keep a single row on mobile; compact no-scroll detail dialogs for movie on mobile/desktop; sticky scroll-to-top button
-- Series matrix: Stable grid with x-axis scroll for episodes and y-axis scroll for seasons; scrollbars appear only when overflow
+## High-level summary of recent updates
+- Franchise dialog redesigned into a search-only modal: a single search input that behaves like the main catalog search (suggestions appear only after typing 2+ chars). Typing shows matching franchise names; selecting one applies it to the selected movies. An "Add "X"" button appears when the user types 2+ characters to create & apply a new franchise immediately.
+- UI actions adjusted: removed the standalone Share icon from the top action row (Share remains in the three-dot menu). Upload action in three-dot menu no longer shows an upload icon (keeps text). The 3-dots menu option previously labeled "Reset app and clear bookmarks" is now renamed to "Reset All".
+- Timer improvements: Timer now recalculates dynamically based on both watch filters (all/watched/unwatched) and the type filter (movies/series/all), ensuring accurate aggregated watch-time and counts.
+- Dialog behavior & body scroll lock: When any modal or dialog is open, the main page body scrolling is locked so only the modal/dialog scroll bar is usable. Dialog containers were made scrollable with max-height constraints so content won't be clipped on small viewports.
+- Franchise and item dialogs: Franchise card view and movie/series dialogs have been adjusted to avoid clipping and to present metadata responsively on small screens. The franchise/dialog header metadata uses responsive sizing and horizontal overflow handling.
+- In-library search visibility: The in-library search control (near pagination) now appears on tablet (md) and larger screens for easier use on tablets without changing behavior on phones. The pagination/search layout was updated so the pagination controls remain on one line across sizes.
+- Series matrix (EpisodeRatingGrid) responsive enhancements:
+  - Cells (episode blocks) are responsive to viewport width (smaller on phones, larger on desktop).
+  - Text inside cells scales with the cell size and uses ellipsis/overflow rules to avoid overlap.
+  - Sticky headers: the left season column and top episode row are sticky and use a consistent frosted-glass (backdrop blur) header style for readability during scroll. The top-left corner cell is also sticky and shares the same frosted effect.
+- UX polish: truncated chips, focus rings, accessible controls, consistent z-indexing, and smoother animations with GSAP.
 
-## Tech Stack
-- React 18 + Vite (dev/build). Vite dev server mounts the Express API as middleware.
-- Tailwind CSS + Radix primitives + lucide-react icons
-- Express API (server) with TMDB + OMDb proxy and key rotation
-- GSAP for small entrance animations
+## Features (overview)
+- Add bookmarks from TMDB search (movies & TV). Deduped and persisted to localStorage (key: onlyseries-bookmarks).
+- Manual franchise/grouping: select multiple movies and group them under a named franchise (create or reuse existing names from the search-only franchise dialog).
+- Pagination with jump-to-page input and Prev/Next controls; controls appear above & below the grid. Pagination layout adjusted to avoid wrapping on smaller widths.
+- Powerful search UX:
+  - Catalog search (top): Debounced, fuzzy-matched suggestions shown only while typing (min 2 chars), tabbed by All/TV/Movies, and includes a "Show more" mechanism.
+  - In-library search (pagination bar): compact icon expands to a wider input (md+ visible) with live dropdown results that respect the current watch filter; grid layout remains stable.
+- Watch status toggles (Watched / Will Watch) with bulk-toggling for franchises.
+- Watch-time Timer: Computes aggregated minutes for displayed items and formats into Yr:Day:Hr:Min with counts for movies and series.
+- Import/Export JSON: Preserve franchise and watchStatus; addedAt is backfilled when missing for sort stability.
+- Series episode matrix: stable x/y grid with sticky headers and responsive cells; scrollbars appear only when content overflows.
 
 ## Quick Start
-- npm install
-- npm run dev — Vite dev server (default http://localhost:8080); API available at /api/* via Express middleware
-- npm run build && npm start — Build SPA + server and serve production bundle
+1. npm install
+2. npm run dev — Vite dev server (default http://localhost:8080) with Express API mounted as middleware
+3. npm run build && npm start — Build client + server and run the production bundle
 
 ## Scripts
-- dev: vite (client dev server with Express middleware)
+- dev: vite
 - build: vite build (client) + vite build --config vite.config.server.js (server)
-- start: node dist/server/node-build.mjs (serve built app + API)
+- start: node dist/server/node-build.mjs
 - test: vitest --run
 - format.fix: prettier --write .
 
-## API Endpoints (server)
-- GET /health — health probe
+## Server API Endpoints (proxy)
+- GET /health
 - GET /api/ping
 - GET /api/search/movies
 - GET /api/search/tv
@@ -46,113 +52,29 @@ A fast, client-first web app to search, bookmark, group, and track movies/TV sho
 - GET /api/trending/tv
 
 ## Environment Variables (server)
-Create a .env (not committed) or set env vars for production:
 - TMDB_API_KEY=your_tmdb_key
-- OMDB_API_KEYS=key1,key2,key3  (comma-separated; automatic failover)
+- OMDB_API_KEYS=key1,key2,key3 (comma-separated; automatic failover)
 
-## Testing & Formatting
-- Run tests: npm test
-- Format code: npm run format.fix
+## Data model (localStorage key: onlyseries-bookmarks)
+Each bookmark object includes: id, type (movie|tv), title, year, poster, imdbRating, runtime (movie) / seasons & episodes (tv), watchStatus (watched|unwatched), franchise (optional), addedAt (ms timestamp).
 
-## Data Model (localStorage)
-Key: onlyseries-bookmarks
-Each item:
-- id: number (TMDB id)
-- type: "movie" | "tv"
-- title, year, poster
-- imdbRating: string (e.g. "7.9" or "N/A")
-- runtime (movies), seasons/episodes (tv)
-- watchStatus: "watched" | "unwatched"
-- franchise: string | undefined (manual grouping label)
-- addedAt: number (ms timestamp used for sorting)
+## Notable Implementation Details & Conventions
+- addedAt is used to stabilize time-based sorting and is backfilled on import when missing.
+- Franchise grouping sets the franchise name string on the selected movie items; franchise cards are computed views derived from grouped items.
+- UI primitives follow Tailwind + Radix patterns. Styling variables are defined in client/global.css and referenced by tailwind.config.js.
 
-Exported JSON from Download Bookmarks contains the current state as above. Import preserves franchise and watchStatus; addedAt is backfilled if missing.
+## Recent changelog (detailed)
+- Reworked franchise naming dialog into a search-first modal (type 2+ chars to see suggestions; Add button appears only after 2+ chars).
+- Removed standalone Share top button; Share remains available in the three-dots menu.
+- Removed the upload icon glyph from the Upload menu item and simplified label.
+- Renamed 3-dots reset option to "Reset All".
+- Timer now reacts to both watch filter and type filter (movies/series) and updates automatically.
+- Fixed duplicate React imports and general syntax issues.
+- Locked body scrolling when any modal/dialog is open; dialog containers scroll internally (max-height + overflow-y).
+- In-library search control now visible on md+ (tablet and above) and remains hidden on smaller phones.
+- Pagination layout changed from grid to a flex row with a flexible center section so controls stay on one line across sizes.
+- EpisodeRatingGrid: responsive cell sizes, responsive font sizes, sticky frosted headers (same blur and alpha), improved cell overflow rules to avoid overlapping text.
 
 ---
 
-# Project Documentation (file-by-file)
-
-This section walks through the codebase so a newcomer can understand what each file does and how pieces fit together.
-
-## Root
-- package.json: Project metadata and scripts. Notable scripts: dev (client dev with Vite), build (client+server), start (runs built server). Dependencies include React, Tailwind, Express, dotenv, GSAP, Radix, lucide-react.
-- vite.config.js: Vite config for the client build/dev server. During dev, Express is mounted as middleware; default port 8080.
-- vite.config.server.js: Vite config for bundling the Express server (SSR/API bundle in dist/server/).
-- tailwind.config.js: Tailwind theme and content scanning (client/**/*.{js,jsx}); custom colors, animations, and CSS variables.
-- postcss.config.js: Tailwind + autoprefixer config for CSS processing.
-- index.html: Vite entry HTML mounting the React app.
-- components.json: Radix UI/shadcn component settings (used for consistent styles).
-
-## server/
-- index.js: Express app with CORS and JSON; mounts routes from routes/tmdb-proxy.js; exposes endpoints used by the client (see API Endpoints).
-- routes/tmdb-proxy.js: Implements TMDB and OMDb proxy logic. Includes OMDb key rotation and season/TV detail helpers.
-- node-build.js: Serves the built SPA and API in production.
-
-## client/
-### App & Pages
-- App.jsx: Root React component composition (mount point for pages).
-- pages/Index.jsx: Main page orchestrating the app. Responsibilities:
-  - Loads/saves bookmarks to localStorage (key: onlyseries-bookmarks)
-  - Migration helpers (e.g., backfill addedAt)
-  - UI controls (filter, sort, import/export, share)
-  - Franchise selection mode and naming dialog
-  - Renders SearchBar, Timer, BookmarksGrid, DialogBox, OfflineBanner, ScrollToTop
-- pages/NotFound.jsx: Fallback page for unknown routes.
-
-### Components (client/components)
-- SearchBar.jsx: Debounced TMDB search UI. Suggestions are shown only while typing (min 2 chars) with fuzzy matching, selection boosting, tab filter (All/TV/Movies), and “Show more”. Limits extra API calls (details/ratings for first ~7). Hides items already in bookmarks. Calls onAddBookmark on click.
-- Timer.jsx: Aggregates total watch time over filtered bookmarks; displays as Yr:Day:Hr:Min plus counts for movies/series.
-- BookmarksGrid.jsx: Displays cards (franchises + individual items), 36 per page with page input and prev/next on top and bottom. Supports selectionMode for grouping; hover actions include toggle watch status and remove.
-- DialogBox.jsx: Details dialog for a selected item (and franchise aggregates if applicable). Franchise naming dialog improved: larger layout, filter field, 5–6 column chip grid, names-only chips with truncation “.....”, and toggleable selection.
-- OfflineBanner.jsx: Warns when offline for search.
-- FallbackImage.jsx: Robust image component with graceful fallback styling.
-- StreamingPlatforms.jsx, EpisodeRatingGrid.jsx, SearchBar.jsx, etc.: Feature-specific UI.
-- ScrollToTop.jsx: Sticky bottom-right button to smooth scroll to top when user has scrolled down.
-
-#### UI primitives (client/components/ui)
-- button.jsx, dropdown-menu.jsx, toast.jsx, toaster.jsx, tooltip.jsx, sonner.jsx: Small UI primitives/wrappers (Radix/shadcn patterns) used across the app.
-
-### Hooks (client/hooks)
-- use-offline.js: React hook that returns online/offline status (drives OfflineBanner and search behavior).
-- use-mobile.jsx: Media-query helper for mobile detection.
-- use-toast.js: Toast/sonner integration hook.
-
-### lib (client/lib)
-- api.js: Client-side API helpers that call the Express proxy endpoints (TMDB and OMDb).
-- streaming.js: Helper utilities for streaming platform data (if present in your flows).
-- utils.js: General-purpose utilities used across components.
-
-### Styles
-- global.css: Tailwind layers and CSS variables; applies dark theme and custom scrollbar; sets CSS variables used by tailwind.config.js.
-
-## public/
-- robots.txt: Basic robots directives.
-
-## Data Flow Summary
-1) User searches in SearchBar → TMDB results are fetched (movies + TV) → suggestions are built (first ~7 with details/IMDb rating) and shown only while typing. Offline state shows a friendly message.
-2) Clicking a result calls onAddBookmark → Index.jsx adds a normalized item into localStorage with fields (type, id, title, poster, year, imdbRating, runtime/seasons/episodes, watchStatus, franchise?, addedAt).
-3) Index.jsx renders BookmarksGrid with current filter/sort, selectionMode flags, and callbacks.
-4) Grouping to franchise: enter selection mode → pick movies → "Group as Franchise" → choose existing or type a name in dialog → selected movies get franchise set to that name. Franchises display as single cards summarizing grouped items.
-5) Export: Download Bookmarks creates a JSON file of exactly what’s in localStorage (including franchise, watchStatus, addedAt). Import: Restores that data (adds addedAt if missing).
-
-## Conventions & Gotchas
-- addedAt is a numeric timestamp used for time-based sorting; it’s applied on add/import if missing.
-- imdbRating can be "N/A" if OMDb rate limits are hit; free key quotas reset daily (UTC).
-- 36 items per page; input lets you jump to any page; prev/next are disabled at bounds.
-- Sorting applies to both franchises (by name or min/max addedAt) and individuals; a unified sort merges them into a single list.
-- CSS: Utility classes via Tailwind; custom theme variables in global.css.
-
-## How to Extend
-- Add new fields to bookmark items by updating where items are created (SearchBar → onAddBookmark in Index.jsx) and ensuring export/import reflect changes automatically via localStorage serialization.
-- Add more sort options by extending BookmarksGrid’s sortType handling and the sort dropdown in Index.jsx.
-- Add server endpoints in server/routes and expose them in server/index.js; call them via client/lib/api.js.
-
-## Changelog
-- Added: Suggestions shown only while typing with tab filters and “Show more”
-- Added: Selection-based boosting and fuzzy ranking in catalog search
-- Added: Larger franchise naming dialog with filter, 5–6 column chip grid, truncation “.....”, and toggleable chips
-- Added: In-library search icon on pagination with live-search dropdown (respects filter)
-- Fixed: Time-based sorting stability by backfilling missing addedAt
-- Fixed: Franchise card keys uniqueness to avoid React key collisions
-- Improved: Search state management to avoid flicker and stale results
-- Improved: In-library search bar widened and border/focus ring no longer clipped
+If you want, I can also add a short changelog section per feature or produce a lightweight "How to use the new franchise dialog" quick-guide.

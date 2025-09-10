@@ -40,7 +40,33 @@ export default function EpisodeRatingGrid({ tvId, seasons, fullScreen = false, o
   const [loading, setLoading] = useState(false);
   // hovered info contains { id, name, x, y }
   const [hovered, setHovered] = useState(null);
-  const FIXED_CELL = 64; // fixed block size used across all series
+  // responsive cell size used across all series; will update on resize
+  const [cellSize, setCellSize] = useState(64);
+
+  const computeCellSize = () => {
+    if (typeof window === 'undefined') return 64;
+    const w = window.innerWidth;
+    // Phones: smaller cells, Tablets: medium, Desktop: larger
+    if (w < 420) return 36;
+    if (w < 640) return 44;
+    if (w < 1024) return 56;
+    return 64;
+  };
+
+  const computeFontSize = (size) => {
+    if (size <= 36) return 10; // px
+    if (size <= 44) return 12;
+    if (size <= 56) return 13;
+    return 14;
+  };
+
+  useEffect(() => {
+    // initialize
+    setCellSize(computeCellSize());
+    const onResize = () => setCellSize(computeCellSize());
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   useEffect(() => {
     if (tvId && seasons > 0) {
@@ -182,34 +208,36 @@ export default function EpisodeRatingGrid({ tvId, seasons, fullScreen = false, o
         </div>
 
         <div className="overflow-x-auto custom-scrollbar" style={{ scrollbarGutter: "stable" }}>
-          <div className="min-w-max" style={{ width: Math.max(300, Math.min(1200, maxEpisodesInSeason * FIXED_CELL)) }}>
+          <div className="min-w-max" style={{ width: Math.max(220, Math.min(1200, maxEpisodesInSeason * cellSize)) }}>
             <div className="flex items-center gap-1 mb-2">
-              <div style={{ width: FIXED_CELL, height: FIXED_CELL }} className="text-center text-xs font-medium text-muted-foreground flex-shrink-0">S/E</div>
+              <div style={{ width: cellSize, height: cellSize }} className="text-center text-xs font-medium text-muted-foreground flex-shrink-0">S/E</div>
               {Array.from({ length: maxEpisodesInSeason }, (_, i) => (
-                <div key={i} style={{ width: FIXED_CELL, height: FIXED_CELL }} className="text-center text-xs font-medium text-muted-foreground flex-shrink-0">{i + 1}</div>
+                <div key={i} style={{ width: cellSize, height: cellSize }} className="text-center text-xs font-medium text-muted-foreground flex-shrink-0">{i + 1}</div>
               ))}
             </div>
 
             <div className="space-y-1 custom-scrollbar" style={{ maxHeight: 384, overflowY: sortedSeasons.length > 8 ? "auto" : "visible", scrollbarGutter: "stable both-edges" }}>
               {sortedSeasons.map((seasonNum) => (
                 <div key={seasonNum} className="flex items-center gap-1">
-                  <div style={{ width: FIXED_CELL, height: FIXED_CELL }} className="text-center text-sm font-medium text-muted-foreground flex-shrink-0">{seasonNum}</div>
+                  <div style={{ width: cellSize, height: cellSize }} className="text-center text-sm font-medium text-muted-foreground flex-shrink-0">{seasonNum}</div>
 
                   {Array.from({ length: maxEpisodesInSeason }, (_, episodeIndex) => {
                     const episode = episodesBySeason[seasonNum]?.[episodeIndex];
-                    if (!episode) return <div key={episodeIndex} style={{ width: FIXED_CELL, height: FIXED_CELL }} className="border border-border/20 rounded-md flex-shrink-0 bg-card/80" />;
+                    if (!episode) return <div key={episodeIndex} style={{ width: cellSize, height: cellSize }} className="border border-border/20 rounded-md flex-shrink-0 bg-card/80" />;
 
                     const styleForRating = getStyleForRating(episode.vote_average);
 
                     return (
                       <div
                         key={episode.id}
-                        className="rounded-md flex items-center justify-center text-xs font-bold cursor-pointer relative"
-                        style={{ width: FIXED_CELL, height: FIXED_CELL, ...styleForRating }}
+                        className="rounded-md flex items-center justify-center font-bold cursor-pointer relative"
+                        style={{ width: cellSize, height: cellSize, ...styleForRating, overflow: 'hidden' }}
                         onMouseEnter={(e) => handleMouseEnter(episode, e)}
                         onMouseLeave={handleMouseLeave}
                       >
-                        {episode.vote_average > 0 ? episode.vote_average.toFixed(1) : "N/A"}
+                        <div style={{ fontSize: computeFontSize(cellSize), lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {episode.vote_average > 0 ? episode.vote_average.toFixed(1) : "N/A"}
+                        </div>
                       </div>
                     );
                   })}
@@ -227,12 +255,11 @@ export default function EpisodeRatingGrid({ tvId, seasons, fullScreen = false, o
   const cols = Math.max(1, maxEpisodesInSeason);
   const GAP = 6; // px spacing between blocks in fullscreen
   const PADDING = 32; // px padding around grid
-  const cellSize = FIXED_CELL;
   const availableWidth = Math.max(200, window.innerWidth - PADDING * 2);
   const availableHeight = Math.max(200, window.innerHeight - PADDING * 2 - 80); // leave space for title/header
 
   const gridColsWidth = cols * cellSize + (cols - 1) * GAP;
-  const labelWidth = Math.max(56, Math.min(96, Math.floor(cellSize * 1.2)));
+  const labelWidth = Math.max(48, Math.min(96, Math.floor(cellSize * 1.15)));
   const totalGridWidth = labelWidth + gridColsWidth;
 
   const needHorizontalScroll = totalGridWidth > availableWidth;
@@ -280,7 +307,6 @@ export default function EpisodeRatingGrid({ tvId, seasons, fullScreen = false, o
 
         {/* Seasons axis label (subtle, below title) */}
         <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-20 text-center text-sm text-muted-foreground">
-          <div className="font-medium">Seasons → (columns)</div>
         </div>
 
         <div
@@ -313,13 +339,17 @@ export default function EpisodeRatingGrid({ tvId, seasons, fullScreen = false, o
                 marginBottom: 8,
                 position: "sticky",
                 top: 0,
-                zIndex: 30,
-                background: "transparent",
+                zIndex: 40,
+                background: "rgba(0,0,0,0.25)",
+                backdropFilter: "blur(6px)",
+                WebkitBackdropFilter: "blur(6px)",
               }}
             >
-              <div style={{ width: labelWidth, height: cellSize, position: 'sticky', left: 0, zIndex: 31 }} className="flex items-center justify-center text-sm font-semibold text-muted-foreground bg-transparent">S / E</div>
+              <div style={{ width: labelWidth, height: cellSize, position: 'sticky', left: 0, zIndex: 50, background: 'rgba(0,0,0,0.25)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }} className="flex items-center justify-center text-sm font-semibold text-muted-foreground">S / E</div>
               {Array.from({ length: cols }, (_, i) => (
-                <div key={`hdr-${i}`} style={{ width: cellSize, height: cellSize }} className="flex items-center justify-center text-sm font-medium text-muted-foreground">E{i + 1}</div>
+                <div key={`hdr-${i}`} style={{ width: cellSize, height: cellSize, background: 'rgba(0,0,0,0.25)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }} className="flex items-center justify-center text-muted-foreground">
+                  <div style={{ fontSize: computeFontSize(cellSize), lineHeight: 1 }}>{`E${i + 1}`}</div>
+                </div>
               ))}
             </div>
 
@@ -336,7 +366,9 @@ export default function EpisodeRatingGrid({ tvId, seasons, fullScreen = false, o
             >
               {sortedSeasons.map((seasonNum) => (
                 <React.Fragment key={`row-${seasonNum}`}>
-                  <div style={{ width: labelWidth, height: cellSize, position: 'sticky', left: 0, zIndex: 20, background: 'transparent' }} className="flex items-center justify-center text-sm font-semibold text-muted-foreground">S {seasonNum}</div>
+                  <div style={{ width: labelWidth, height: cellSize, position: 'sticky', left: 0, zIndex: 30, background: 'rgba(0,0,0,0.25)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }} className="flex items-center justify-center text-muted-foreground">
+                    <div style={{ fontSize: computeFontSize(cellSize), lineHeight: 1 }}>{`S ${seasonNum}`}</div>
+                  </div>
                   {Array.from({ length: cols }, (_, episodeIndex) => {
                     const episode = episodesBySeason[seasonNum]?.[episodeIndex] || null;
                     if (!episode) {
@@ -348,12 +380,12 @@ export default function EpisodeRatingGrid({ tvId, seasons, fullScreen = false, o
                     return (
                       <div
                         key={`cell-${seasonNum}-${episodeIndex}`}
-                        style={{ width: cellSize, height: cellSize, ...styleForRating }}
-                        className="rounded-md flex items-center justify-center text-sm font-bold cursor-pointer relative"
+                        style={{ width: cellSize, height: cellSize, ...styleForRating, overflow: 'hidden' }}
+                        className="rounded-md flex items-center justify-center font-bold cursor-pointer relative"
                         onMouseEnter={(e) => handleMouseEnter(episode, e)}
                         onMouseLeave={handleMouseLeave}
                       >
-                        <div>{episode.vote_average > 0 ? episode.vote_average.toFixed(1) : "N/A"}</div>
+                        <div style={{ fontSize: computeFontSize(cellSize), lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{episode.vote_average > 0 ? episode.vote_average.toFixed(1) : "N/A"}</div>
                       </div>
                     );
                   })}
