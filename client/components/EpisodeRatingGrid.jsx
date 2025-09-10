@@ -339,13 +339,15 @@ export default function EpisodeRatingGrid({ tvId, seasons, fullScreen = false, o
                 marginBottom: 8,
                 position: "sticky",
                 top: 0,
-                zIndex: 30,
-                background: "transparent",
+                zIndex: 40,
+                background: "rgba(0,0,0,0.25)",
+                backdropFilter: "blur(6px)",
+                WebkitBackdropFilter: "blur(6px)",
               }}
             >
-              <div style={{ width: labelWidth, height: cellSize, position: 'sticky', left: 0, zIndex: 31 }} className="flex items-center justify-center text-sm font-semibold text-muted-foreground bg-transparent">S / E</div>
+              <div style={{ width: labelWidth, height: cellSize, position: 'sticky', left: 0, zIndex: 50, background: 'rgba(0,0,0,0.25)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }} className="flex items-center justify-center text-sm font-semibold text-muted-foreground">S / E</div>
               {Array.from({ length: cols }, (_, i) => (
-                <div key={`hdr-${i}`} style={{ width: cellSize, height: cellSize }} className="flex items-center justify-center text-muted-foreground">
+                <div key={`hdr-${i}`} style={{ width: cellSize, height: cellSize, background: 'rgba(0,0,0,0.25)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }} className="flex items-center justify-center text-muted-foreground">
                   <div style={{ fontSize: computeFontSize(cellSize), lineHeight: 1 }}>{`E${i + 1}`}</div>
                 </div>
               ))}
@@ -364,7 +366,7 @@ export default function EpisodeRatingGrid({ tvId, seasons, fullScreen = false, o
             >
               {sortedSeasons.map((seasonNum) => (
                 <React.Fragment key={`row-${seasonNum}`}>
-                  <div style={{ width: labelWidth, height: cellSize, position: 'sticky', left: 0, zIndex: 20, background: 'transparent' }} className="flex items-center justify-center text-muted-foreground">
+                  <div style={{ width: labelWidth, height: cellSize, position: 'sticky', left: 0, zIndex: 30, background: 'rgba(0,0,0,0.25)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }} className="flex items-center justify-center text-muted-foreground">
                     <div style={{ fontSize: computeFontSize(cellSize), lineHeight: 1 }}>{`S ${seasonNum}`}</div>
                   </div>
                   {Array.from({ length: cols }, (_, episodeIndex) => {
