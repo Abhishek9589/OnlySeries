@@ -1,15 +1,22 @@
 import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Film, Tv, ImageOff } from 'lucide-react';
 
-export default function FallbackImage({ 
-  src, 
-  alt, 
-  type = 'movie', 
+export default function FallbackImage({
+  src,
+  alt,
+  type = 'movie',
   className = '',
   fallbackClassName = ''
 }) {
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Reset loading state when src changes so image shows loading until this src finishes
+  useEffect(() => {
+    setHasError(false);
+    setIsLoading(true);
+  }, [src]);
 
   const handleError = () => {
     setHasError(true);
