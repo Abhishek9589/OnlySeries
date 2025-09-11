@@ -25,7 +25,6 @@
     "dotenv": "^17.2.1",
     "express": "^4.19.2",
     "gsap": "^3.13.0",
-    "rollup": "^4.50.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {

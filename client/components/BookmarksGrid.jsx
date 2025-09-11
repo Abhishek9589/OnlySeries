@@ -463,6 +463,8 @@ export default function BookmarksGrid({
                 onMouseEnter={() => setHoveredCard(`${item.type}-${item.id}`)}
                 onMouseLeave={() => setHoveredCard(null)}
                 onClick={() => {
+                  // Clear hover overlay immediately to avoid sticky hover after opening dialog
+                  setHoveredCard(null);
                   if (selectionMode && item.type === "movie") {
                     onToggleSelect && onToggleSelect(item);
                   } else {
@@ -583,7 +585,7 @@ export default function BookmarksGrid({
                 className="relative group cursor-pointer w-full max-w-[220px]"
                 onMouseEnter={() => setHoveredCard(card.franchiseKey)}
                 onMouseLeave={() => setHoveredCard(null)}
-                onClick={() => onCardClick({ ...movies[0], franchise })}
+                onClick={() => { setHoveredCard(null); onCardClick({ ...movies[0], franchise }); }}
               >
                 <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-gradient-to-br from-card via-card/90 to-card/80 border border-border/50 shadow-xl transition-all duration-300 group-hover:scale-105 group-hover:shadow-2xl group-hover:border-primary/30">
                   <FallbackImage

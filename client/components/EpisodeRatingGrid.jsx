@@ -2,6 +2,35 @@ import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom";
 import { getTVSeason } from "../lib/api";
 
+// In-memory cache for quick repeat opens within the same session
+const EPISODE_CACHE = new Map(); // key: `${tvId}` -> { seasons, episodes }
+const LS_EPISODES_CACHE_KEY = "tv_episodes_cache_v1";
+
+const readEpisodesCache = (tvId) => {
+  const mem = EPISODE_CACHE.get(String(tvId));
+  if (mem) return mem;
+  try {
+    const raw = localStorage.getItem(LS_EPISODES_CACHE_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    const entry = obj[String(tvId)];
+    if (!entry || !Array.isArray(entry.episodes)) return null;
+    return entry;
+  } catch {
+    return null;
+  }
+};
+
+const writeEpisodesCache = (tvId, data) => {
+  try {
+    EPISODE_CACHE.set(String(tvId), data);
+    const raw = localStorage.getItem(LS_EPISODES_CACHE_KEY);
+    const obj = raw ? JSON.parse(raw) : {};
+    obj[String(tvId)] = data;
+    localStorage.setItem(LS_EPISODES_CACHE_KEY, JSON.stringify(obj));
+  } catch {}
+};
+
 function TooltipPortal({ visible, x, y, content }) {
   const [portalEl] = useState(() => document.createElement("div"));
 
@@ -38,6 +67,7 @@ function TooltipPortal({ visible, x, y, content }) {
 export default function EpisodeRatingGrid({ tvId, seasons, fullScreen = false, onCloseFullScreen, title }) {
   const [episodes, setEpisodes] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [showLoader, setShowLoader] = useState(false);
   // hovered info contains { id, name, x, y }
   const [hovered, setHovered] = useState(null);
   // responsive cell size used across all series; will update on resize
@@ -70,6 +100,14 @@ export default function EpisodeRatingGrid({ tvId, seasons, fullScreen = false, o
 
   useEffect(() => {
     if (tvId && seasons > 0) {
+      // Try cache first
+      const cached = readEpisodesCache(tvId);
+      if (cached && Number.isFinite(cached.seasons) && cached.seasons >= seasons) {
+        setEpisodes(cached.episodes);
+        setLoading(false);
+        setShowLoader(false);
+        return;
+      }
       fetchEpisodes();
     }
   }, [tvId, seasons]);
@@ -94,6 +132,8 @@ export default function EpisodeRatingGrid({ tvId, seasons, fullScreen = false, o
 
   const fetchEpisodes = async () => {
     setLoading(true);
+    setShowLoader(true); // show loader immediately until episodes loaded
+
     try {
       const allEpisodes = [];
       const batchSize = 5;
@@ -115,10 +155,12 @@ export default function EpisodeRatingGrid({ tvId, seasons, fullScreen = false, o
         if (batchEnd < seasons) await new Promise((r) => setTimeout(r, 100));
       }
       setEpisodes(allEpisodes);
+      writeEpisodesCache(tvId, { seasons, episodes: allEpisodes });
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
+      setShowLoader(false);
     }
   };
 
@@ -155,15 +197,56 @@ export default function EpisodeRatingGrid({ tvId, seasons, fullScreen = false, o
 
   const handleMouseLeave = () => setHovered(null);
 
-  if (loading) return (
-    <div className="flex items-center justify-center p-8">
-      <div className="text-muted-foreground">Loading episode ratings...</div>
-    </div>
-  );
+  if (loading && showLoader) {
+    if (fullScreen) {
+      return ReactDOM.createPortal(
+        <div className="fixed inset-0 z-50 bg-background flex items-center justify-center" style={{ overflow: "hidden" }}>
+          <div className="absolute inset-0 bg-card/60 backdrop-blur-sm" />
+          <div className="relative z-10 flex flex-col items-center gap-4 p-6">
+            <div className="animate-spin w-10 h-10 border-4 border-t-transparent rounded-full border-primary" />
+            <div className="text-muted-foreground">Loading episode ratings...</div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onCloseFullScreen) onCloseFullScreen();
+              }}
+              className="mt-2 px-3 py-1 rounded-md bg-card border border-border text-foreground hover:bg-card/80"
+            >
+              Close
+            </button>
+          </div>
+        </div>,
+        document.body
+      );
+    }
 
-  if (episodes.length === 0) return (
-    <div className="text-center p-8 text-muted-foreground">No episode ratings available</div>
-  );
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-muted-foreground">Loading episode ratings...</div>
+      </div>
+    );
+  }
+
+  if (!loading && episodes.length === 0) {
+    if (fullScreen) {
+      return ReactDOM.createPortal(
+        <div className="fixed inset-0 z-50 bg-background flex items-center justify-center" style={{ overflow: "hidden" }}>
+          <div className="absolute inset-0 bg-card/60 backdrop-blur-sm" onClick={() => onCloseFullScreen && onCloseFullScreen()} />
+          <div className="relative z-10 p-6 bg-card/95 border border-border/50 rounded-2xl shadow-2xl text-center">
+            <div className="text-muted-foreground">No episode ratings available</div>
+            <div className="mt-4">
+              <button onClick={() => onCloseFullScreen && onCloseFullScreen()} className="px-3 py-1 rounded-md bg-card border border-border text-foreground hover:bg-card/80">Close</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      );
+    }
+
+    return (
+      <div className="text-center p-8 text-muted-foreground">No episode ratings available</div>
+    );
+  }
 
   const episodesBySeason = episodes.reduce((acc, episode) => {
     const season = episode.season_number;
