@@ -132,7 +132,8 @@ export default function EpisodeRatingGrid({ tvId, seasons, fullScreen = false, o
 
   const fetchEpisodes = async () => {
     setLoading(true);
-    setShowLoader(true); // show loader immediately until episodes loaded
+    // Only show the loader for fullscreen matrix views (when user opens the series to watch)
+    setShowLoader(!!fullScreen);
 
     try {
       const allEpisodes = [];
