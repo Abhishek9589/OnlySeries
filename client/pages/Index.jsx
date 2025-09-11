@@ -178,87 +178,189 @@ export default function Index() {
 
     const enrich = async () => {
       try {
-        const updated = await Promise.all(
-          bookmarks.map(async (b) => {
-            if (b.type === "movie") {
-              const details = await getMovieDetails(b.id).catch(() => null);
-              const runtime = details?.runtime || b.runtime || 120;
+        // Concurrency limit to avoid blasting the APIs when a large number of bookmarks exist
+        const concurrency = 6;
+        const results = new Array(bookmarks.length);
+        let nextIndex = 0;
 
-              let imdbRating = b.imdbRating;
-              // If missing or N/A, try OMDb via proxy (prefer imdbId then title)
-              if (!imdbRating || imdbRating === "N/A") {
-                try {
-                  const imdbId = details?.external_ids?.imdb_id;
-                  const year = details?.release_date ? new Date(details.release_date).getFullYear().toString() : b.year;
-                  const omdbRating = await getIMDbRating({ imdbId, title: details?.title || b.title, year });
-                  if (omdbRating && omdbRating !== "N/A") {
-                    imdbRating = omdbRating;
-                  } else {
-                    // Fallback to TMDb vote_average
+        const worker = async () => {
+          while (true) {
+            if (cancelled) return;
+            const i = nextIndex++;
+            if (i >= bookmarks.length) return;
+            const b = bookmarks[i];
+
+            try {
+              if (b.type === "movie") {
+                const details = await getMovieDetails(b.id).catch(() => null);
+                const runtime = Number.isFinite(details?.runtime) ? details.runtime : (Number.isFinite(b.runtime) ? b.runtime : 120);
+
+                let imdbRating = b.imdbRating;
+                if (!imdbRating || imdbRating === "N/A") {
+                  try {
+                    const imdbId = details?.external_ids?.imdb_id;
+                    const year = details?.release_date ? String(new Date(details.release_date).getFullYear()) : b.year;
+                    const omdbRating = await getIMDbRating({ imdbId, title: details?.title || b.title, year });
+                    if (omdbRating && omdbRating !== "N/A") {
+                      imdbRating = omdbRating;
+                    } else {
+                      const tmdbRating = typeof details?.vote_average === 'number' ? String(details.vote_average.toFixed(1)) : undefined;
+                      imdbRating = tmdbRating || (b.imdbRating || "N/A");
+                    }
+                  } catch (e) {
                     const tmdbRating = typeof details?.vote_average === 'number' ? String(details.vote_average.toFixed(1)) : undefined;
                     imdbRating = tmdbRating || (b.imdbRating || "N/A");
                   }
-                } catch (e) {
-                  const tmdbRating = typeof details?.vote_average === 'number' ? String(details.vote_average.toFixed(1)) : undefined;
-                  imdbRating = tmdbRating || (b.imdbRating || "N/A");
                 }
+
+                results[i] = { ...b, runtime, imdbRating };
+                continue;
               }
 
-              return { ...b, runtime, imdbRating };
-            }
+              if (b.type === "tv") {
+                const details = await getTVDetails(b.id).catch(() => null);
 
-            if (b.type === "tv") {
-              const details = await getTVDetails(b.id).catch(() => null);
-              const numEpisodes = Number.isFinite(details?.number_of_episodes) ? details.number_of_episodes : (Number.isFinite(b.episodes) ? b.episodes : (b.seasons || 1) * 10);
-
-              let avgRuntime = b.averageEpisodeRuntime;
-              const epRunArr = details?.episode_run_time || b.episode_run_time || [];
-              if (!Number.isFinite(avgRuntime)) {
-                if (Array.isArray(epRunArr) && epRunArr.length > 0) {
-                  avgRuntime = Math.round(epRunArr.reduce((a, c) => a + c, 0) / epRunArr.length);
-                } else if (Number.isFinite(details?.episode_run_time)) {
-                  avgRuntime = details.episode_run_time;
-                } else {
-                  avgRuntime = 45; // sensible fallback
-                }
-              }
-
-              let imdbRating = b.imdbRating;
-              try {
-                if (!imdbRating || imdbRating === "N/A") {
-                  const imdbId = details?.external_ids?.imdb_id;
-                  const year = details?.first_air_date ? new Date(details.first_air_date).getFullYear().toString() : b.year;
-                  const omdbRating = await getIMDbRating({ imdbId, title: details?.name || b.title, year });
-                  if (omdbRating && omdbRating !== "N/A") {
-                    imdbRating = omdbRating;
+                let numEpisodes = null;
+                if (Number.isFinite(details?.number_of_episodes)) {
+                  numEpisodes = details.number_of_episodes;
+                } else if (Array.isArray(details?.seasons) && details.seasons.length > 0) {
+                  const sum = details.seasons.reduce((s, ss) => s + (Number.isFinite(ss?.episode_count) ? ss.episode_count : 0), 0);
+                  if (sum > 0) {
+                    numEpisodes = sum;
                   }
                 }
-              } catch (e) {
-                // ignore and fallback
+
+                if (!Number.isFinite(numEpisodes)) {
+                  if (Number.isFinite(b.episodes)) {
+                    numEpisodes = b.episodes;
+                  } else if (Number.isFinite(details?.number_of_seasons)) {
+                    numEpisodes = (details.number_of_seasons || 1) * 10;
+                  } else {
+                    numEpisodes = (b.seasons || 1) * 10;
+                  }
+                }
+
+                let avgRuntime = undefined;
+                // Prefer TMDb explicit episode runtimes when available
+                if (Array.isArray(details?.episode_run_time) && details.episode_run_time.length > 0) {
+                  const runs = details.episode_run_time.filter(Number.isFinite);
+                  if (runs.length > 0) avgRuntime = Math.round(runs.reduce((a, c) => a + c, 0) / runs.length);
+                } else if (Number.isFinite(details?.episode_run_time)) {
+                  avgRuntime = details.episode_run_time;
+                }
+
+                // If still not available, prefer any bookmark-provided avg
+                if (!Number.isFinite(avgRuntime) && Number.isFinite(b.averageEpisodeRuntime)) {
+                  avgRuntime = b.averageEpisodeRuntime;
+                }
+
+                // Keep original episode_run_time array for storing back to bookmark
+                const epRunArr = Array.isArray(details?.episode_run_time)
+                  ? details.episode_run_time
+                  : (Array.isArray(b.episode_run_time) ? b.episode_run_time : []);
+
+                // Build genres list
+                const genres = Array.isArray(details?.genres)
+                  ? details.genres.map((g) => String(g?.name || "").toLowerCase())
+                  : (Array.isArray(b.genres) ? b.genres.map((g) => String(g?.name || g || "").toLowerCase()) : []);
+
+                // Helper to detect streaming networks
+                const streamingProviders = ["netflix", "hulu", "amazon", "prime video", "prime", "disney+", "apple tv+", "hbomax", "paramount+", "peacock", "max"];
+                const networks = Array.isArray(details?.networks) ? details.networks.map(n => String(n?.name || '').toLowerCase()) : [];
+                const isStreaming = networks.some(n => streamingProviders.some(p => n.includes(p)));
+
+                const isAnime = genres.includes("anime") || (genres.includes("animation") && genres.includes("japanese"));
+                const isCartoon = genres.includes("animation") || genres.some(n => n.includes("cartoon") || n.includes("kids"));
+                const isComedy = genres.includes("comedy") || genres.includes("sitcom");
+                const isDrama = genres.includes("drama") || genres.includes("action") || genres.includes("thriller");
+
+                const calcAvgFromArray = (arr) => Math.round(arr.reduce((a, c) => a + c, 0) / arr.length);
+
+                if (!Number.isFinite(avgRuntime)) {
+                  // Short-form anime detection: if episode runtimes provided and all <= 15
+                  if (Array.isArray(details?.episode_run_time) && details.episode_run_time.length > 0) {
+                    const runs = details.episode_run_time.filter(Number.isFinite);
+                    if (runs.length > 0) {
+                      const maxRun = Math.max(...runs);
+                      const avgRun = calcAvgFromArray(runs);
+                      if (avgRun <= 15 || maxRun <= 15) {
+                        avgRuntime = 12; // short-form anime
+                      } else {
+                        avgRuntime = avgRun;
+                      }
+                    }
+                  } else if (isAnime) {
+                    avgRuntime = 24; // standard anime
+                  } else if (isCartoon) {
+                    avgRuntime = 24; // western cartoons
+                  } else if (isComedy) {
+                    avgRuntime = 24; // sitcom/comedy
+                  } else if (isDrama) {
+                    // Streaming drama gets longer runtime
+                    if (isStreaming) {
+                      avgRuntime = 55; // mid of 50-60
+                    } else {
+                      avgRuntime = 45;
+                    }
+                  } else if (Number.isFinite(b.episode_run_time)) {
+                    avgRuntime = b.episode_run_time;
+                  } else {
+                    avgRuntime = 45; // sensible fallback
+                  }
+                }
+
+                // Total runtime in minutes for the show
+                const totalMinutes = Number.isFinite(numEpisodes) && Number.isFinite(avgRuntime) ? (numEpisodes * avgRuntime) : null;
+
+                let imdbRating = b.imdbRating;
+                if (!imdbRating || imdbRating === "N/A") {
+                  try {
+                    const imdbId = details?.external_ids?.imdb_id;
+                    const year = details?.first_air_date ? String(new Date(details.first_air_date).getFullYear()) : b.year;
+                    const omdbRating = await getIMDbRating({ imdbId, title: details?.name || b.title, year });
+                    if (omdbRating && omdbRating !== "N/A") {
+                      imdbRating = omdbRating;
+                    }
+                  } catch (e) {
+                    // ignore and fallback later
+                  }
+                }
+
+                const tmdbRating = typeof details?.vote_average === 'number' ? String(details.vote_average.toFixed(1)) : undefined;
+
+                results[i] = {
+                  ...b,
+                  genres: Array.isArray(details?.genres) ? details.genres : (Array.isArray(b.genres) ? b.genres : []),
+                  seasons: Number.isFinite(details?.number_of_seasons) ? details.number_of_seasons : (Array.isArray(details?.seasons) ? details.seasons.length : (Number.isFinite(b.seasons) ? b.seasons : undefined)),
+                  number_of_seasons: Number.isFinite(details?.number_of_seasons) ? details.number_of_seasons : undefined,
+                  episodes: numEpisodes,
+                  averageEpisodeRuntime: avgRuntime,
+                  episode_run_time: epRunArr,
+                  totalRuntimeMinutes: totalMinutes,
+                  imdbRating: (!imdbRating || imdbRating === "N/A") ? (tmdbRating || b.imdbRating || "N/A") : imdbRating,
+                };
+
+                continue;
               }
 
-              const tmdbRating = typeof details?.vote_average === 'number' ? String(details.vote_average.toFixed(1)) : undefined;
-
-              const enriched = {
-                ...b,
-                episodes: numEpisodes,
-                averageEpisodeRuntime: avgRuntime,
-                episode_run_time: epRunArr,
-                imdbRating: (!imdbRating || imdbRating === "N/A") ? (tmdbRating || b.imdbRating || "N/A") : imdbRating,
-              };
-
-              return enriched;
+              // Unknown type - keep as is
+              results[i] = b;
+            } catch (err) {
+              console.error('Error enriching item', b, err);
+              results[i] = b;
             }
+          }
+        };
 
-            return b;
-          }),
-        );
+        const workers = Array.from({ length: Math.min(concurrency, bookmarks.length) }).map(() => worker());
+        await Promise.all(workers);
 
         if (!cancelled) {
-          // Only update if any changes detected to avoid infinite loop
+          const updated = results;
           const changed = updated.some((u, i) => {
             const orig = bookmarks[i];
-            return u.runtime !== orig.runtime || u.episodes !== orig.episodes || u.averageEpisodeRuntime !== orig.averageEpisodeRuntime || u.imdbRating !== orig.imdbRating;
+            if (!orig) return true;
+            return u.runtime !== orig.runtime || u.seasons !== orig.seasons || u.episodes !== orig.episodes || u.averageEpisodeRuntime !== orig.averageEpisodeRuntime || u.imdbRating !== orig.imdbRating || u.totalRuntimeMinutes !== orig.totalRuntimeMinutes;
           });
           if (changed) setBookmarks(updated);
         }
@@ -299,6 +401,11 @@ export default function Index() {
     setBookmarks((prev) =>
       prev.filter((item) => !(item.id === id && item.type === type)),
     );
+  };
+
+  // Update a specific bookmark with a patch object
+  const updateBookmark = (id, type, patch) => {
+    setBookmarks((prev) => prev.map((b) => (b.id === id && b.type === type ? { ...b, ...patch } : b)));
   };
 
   const handleToggleWatchStatus = (id, type) => {
@@ -636,6 +743,7 @@ export default function Index() {
                   onRemoveBookmark={handleRemoveBookmark}
                   onCardClick={handleCardClick}
                   onToggleWatchStatus={handleToggleWatchStatus}
+                  onUpdateBookmark={updateBookmark}
                   selectionMode={selectionMode}
                   selectedKeys={selectedKeys}
                   onToggleSelect={(item) => {

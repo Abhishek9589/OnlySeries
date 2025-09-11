@@ -31,34 +31,84 @@ export const getIMDbRating = async ({ title, year, imdbId } = {}) => {
   }
 };
 
-export const searchMovies = async (query) => {
+// Simple local cache for TMDb search results to speed up repeated queries
+const TMDB_SEARCH_CACHE_KEY = 'tmdb_search_cache_v1';
+const TMDB_SEARCH_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+const readTmdbSearchCache = (q) => {
   try {
-    const response = await axios.get("/api/search/movies", {
+    const raw = localStorage.getItem(TMDB_SEARCH_CACHE_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    const entry = obj[q];
+    if (!entry) return null;
+    if (Date.now() - entry.ts > TMDB_SEARCH_CACHE_TTL) return null;
+    return entry.data;
+  } catch (e) {
+    return null;
+  }
+};
+
+const writeTmdbSearchCache = (q, data) => {
+  try {
+    const raw = localStorage.getItem(TMDB_SEARCH_CACHE_KEY);
+    const obj = raw ? JSON.parse(raw) : {};
+    obj[q] = { ts: Date.now(), data };
+    localStorage.setItem(TMDB_SEARCH_CACHE_KEY, JSON.stringify(obj));
+  } catch (e) {}
+};
+
+export const searchMovies = async (query) => {
+  const q = String(query || '').trim().toLowerCase();
+  if (!q) return [];
+
+  // Try local cache first
+  const cached = readTmdbSearchCache('movie:' + q);
+  if (cached) return cached;
+
+  try {
+    const response = await axios.get('/api/search/movies', {
       params: { query },
-      timeout: 15000, // 15 second timeout for search
+      timeout: 8000,
     });
-    return response.data.results || [];
+    const results = response.data.results || [];
+    writeTmdbSearchCache('movie:' + q, results);
+    return results;
   } catch (error) {
+    // Return cache if network fails
+    const fallback = readTmdbSearchCache('movie:' + q);
+    if (fallback) return fallback;
     return handleApiError(error, []);
   }
 };
 
 export const searchTV = async (query) => {
+  const q = String(query || '').trim().toLowerCase();
+  if (!q) return [];
+
+  // Try local cache first
+  const cached = readTmdbSearchCache('tv:' + q);
+  if (cached) return cached;
+
   try {
-    const response = await axios.get("/api/search/tv", {
+    const response = await axios.get('/api/search/tv', {
       params: { query },
-      timeout: 15000, // 15 second timeout for search
+      timeout: 8000,
     });
-    return response.data.results || [];
+    const results = response.data.results || [];
+    writeTmdbSearchCache('tv:' + q, results);
+    return results;
   } catch (error) {
+    const fallback = readTmdbSearchCache('tv:' + q);
+    if (fallback) return fallback;
     return handleApiError(error, []);
   }
 };
 
-export const getMovieDetails = async (id) => {
+export const getMovieDetails = async (id, options = {}) => {
   try {
     const response = await axios.get(`/api/movie/${id}`, {
-      timeout: 10000,
+      timeout: options.timeout || 8000,
     });
     return response.data;
   } catch (error) {
@@ -72,10 +122,13 @@ export const getMovieDetails = async (id) => {
   }
 };
 
-export const getTVDetails = async (id) => {
+export const getTVDetails = async (id, options = {}) => {
   try {
+    const params = {};
+    if (options.minimal) params.minimal = true;
     const response = await axios.get(`/api/tv/${id}`, {
-      timeout: 10000,
+      params,
+      timeout: options.timeout || 5000,
     });
     return response.data;
   } catch (error) {

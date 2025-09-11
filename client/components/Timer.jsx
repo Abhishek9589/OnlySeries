@@ -14,14 +14,94 @@ export default function Timer({ bookmarks, watchFilter, typeFilter }) {
     });
 
     const total = itemsToCount.reduce((total, item) => {
-      if (item.type === "movie") {
-        movies++;
-        return total + (item.runtime || 120); // Default 2 hours if no runtime
-      } else {
+      try {
+        if (item.type === "movie") {
+          movies++;
+          const runtime = Number.isFinite(item.runtime) ? item.runtime : (Number.isFinite(item.totalRuntimeMinutes) ? item.totalRuntimeMinutes : 120);
+          return total + runtime;
+        }
+
+        // TV shows
         series++;
-        // For series: episodes * average runtime (assume 45 min per episode)
-        const episodeCount = item.episodes || (item.seasons || 1) * 10; // Default 10 episodes per season
-        return total + episodeCount * 45;
+
+        // If totalRuntimeMinutes already computed, prefer it
+        if (Number.isFinite(item.totalRuntimeMinutes) && item.totalRuntimeMinutes > 0) {
+          return total + item.totalRuntimeMinutes;
+        }
+
+        // Determine episode count: prefer number_of_episodes, then episodes, then sum seasons' episode_count
+        let episodeCount = null;
+        if (Number.isFinite(item.number_of_episodes) && item.number_of_episodes > 0) {
+          episodeCount = item.number_of_episodes;
+        } else if (Number.isFinite(item.episodes) && item.episodes > 0) {
+          episodeCount = item.episodes;
+        } else if (Array.isArray(item.seasons) && item.seasons.length > 0) {
+          const sum = item.seasons.reduce((s, ss) => s + (Number.isFinite(ss?.episode_count) ? ss.episode_count : 0), 0);
+          if (sum > 0) episodeCount = sum;
+        }
+
+        // Determine per-episode runtime with TMDb priority
+        let epRuntime = null;
+        // 1) TMDb explicit per-episode runtimes (details were saved into item.episode_run_time or item.averageEpisodeRuntime)
+        if (Array.isArray(item.episode_run_time) && item.episode_run_time.length > 0) {
+          const runs = item.episode_run_time.filter(Number.isFinite);
+          if (runs.length > 0) {
+            const avgRun = Math.round(runs.reduce((a, c) => a + c, 0) / runs.length);
+            // short-form anime detection
+            const maxRun = Math.max(...runs);
+            const genresList = Array.isArray(item.genres) ? item.genres.map(g => (typeof g === 'string' ? g.toLowerCase() : (g?.name || '').toLowerCase())) : [];
+            const isAnime = genresList.includes('anime') || (genresList.includes('animation') && genresList.includes('japanese'));
+            if (isAnime && avgRun <= 15) {
+              epRuntime = 12;
+            } else {
+              epRuntime = avgRun;
+            }
+          }
+        }
+
+        // 2) item.averageEpisodeRuntime (might come from TMDb if set during enrichment)
+        if (!Number.isFinite(epRuntime) && Number.isFinite(item.averageEpisodeRuntime) && item.averageEpisodeRuntime > 0) {
+          epRuntime = item.averageEpisodeRuntime;
+        }
+
+        // 3) fallback to genre rules
+        if (!Number.isFinite(epRuntime)) {
+          const genresList = Array.isArray(item.genres) ? item.genres.map(g => (typeof g === 'string' ? g.toLowerCase() : (g?.name || '').toLowerCase())) : [];
+          const isAnime = genresList.includes('anime') || (genresList.includes('animation') && genresList.includes('japanese'));
+          const isCartoon = genresList.includes('animation') || genresList.some(n => n.includes('cartoon') || n.includes('kids'));
+          const isComedy = genresList.includes('comedy') || genresList.includes('sitcom');
+          const isDrama = genresList.includes('drama') || genresList.includes('action') || genresList.includes('thriller');
+
+          if (isAnime) {
+            epRuntime = 24;
+          } else if (isComedy || isCartoon) {
+            epRuntime = 24;
+          } else if (isDrama) {
+            const networks = Array.isArray(item.networks) ? item.networks.map(n => String(n?.name || '').toLowerCase()) : [];
+            const streamingProviders = ["netflix", "hulu", "amazon", "prime video", "prime", "disney+", "apple tv+", "hbomax", "paramount+", "peacock", "max"];
+            const isStreaming = networks.some(n => streamingProviders.some(p => n.includes(p)));
+            epRuntime = isStreaming ? 55 : 45;
+          } else if (Number.isFinite(item.episode_run_time) && item.episode_run_time > 0) {
+            epRuntime = item.episode_run_time;
+          } else {
+            epRuntime = 45;
+          }
+        }
+
+        // If episodeCount unknown, fall back to seasons * 10 or 10 episodes
+        if (!Number.isFinite(episodeCount) || episodeCount <= 0) {
+          const seasonsCount = Number.isFinite(item.seasons) ? item.seasons : (Number.isFinite(item.number_of_seasons) ? item.number_of_seasons : (Array.isArray(item.seasons) ? item.seasons.length : null));
+          if (Number.isFinite(seasonsCount) && seasonsCount > 0) {
+            episodeCount = seasonsCount * 10;
+          } else {
+            episodeCount = 10;
+          }
+        }
+
+        return total + (episodeCount * epRuntime);
+      } catch (err) {
+        console.error('Timer calc error for item', item, err);
+        return total;
       }
     }, 0);
 

@@ -1,7 +1,84 @@
 import axios from "axios";
 
-// TMDb API Key from environment
-const TMDB_API_KEY = process.env.TMDB_API_KEY || "9f5749f3d13f732d1ec069bde976daba";
+// TMDb API Keys from environment (support rotation between multiple keys)
+const TMDB_API_KEYS = [
+  process.env.TMDB_API_KEY, // single key backwards compatibility
+  process.env.TMDB_API_KEY_1 || "b8468686fa432070fa187105f4dbe9a7",
+  process.env.TMDB_API_KEY_2 || "7aa1c9da1a877c7d1de537fae27b119a",
+].filter(k => k && k !== "");
+
+let currentTmdbKeyIndex = 0;
+const failedTmdbKeys = new Set();
+
+const getNextTmdbApiKey = () => {
+  if (failedTmdbKeys.size >= TMDB_API_KEYS.length) {
+    console.log("All TMDb API keys exhausted, resetting failed keys set");
+    failedTmdbKeys.clear();
+    currentTmdbKeyIndex = 0;
+  }
+
+  for (let i = 0; i < TMDB_API_KEYS.length; i++) {
+    const idx = (currentTmdbKeyIndex + i) % TMDB_API_KEYS.length;
+    const key = TMDB_API_KEYS[idx];
+    if (!failedTmdbKeys.has(key)) {
+      currentTmdbKeyIndex = idx;
+      return key;
+    }
+  }
+
+  return TMDB_API_KEYS[0];
+};
+
+const markTmdbKeyAsFailed = (key) => {
+  failedTmdbKeys.add(key);
+  console.log(`TMDb API key ${key.substring(0, 4)}... marked as failed. Failed keys: ${failedTmdbKeys.size}/${TMDB_API_KEYS.length}`);
+  currentTmdbKeyIndex = (currentTmdbKeyIndex + 1) % TMDB_API_KEYS.length;
+};
+
+const tmdbGet = async (url, options = {}) => {
+  let lastError = null;
+  const maxAttempts = TMDB_API_KEYS.length;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const key = getNextTmdbApiKey();
+    try {
+      const params = Object.assign({}, options.params || {});
+      params.api_key = key;
+      const config = Object.assign({}, options, { params });
+      const response = await axios.get(url, config);
+
+      // Handle known TMDb error responses that imply the key is invalid or rate-limited
+      if (response.status === 401 || response.status === 403) {
+        markTmdbKeyAsFailed(key);
+        lastError = new Error(`Status ${response.status}`);
+        continue;
+      }
+
+      if (response.data && (response.data.status_code === 7 || response.data.status_code === 34)) {
+        markTmdbKeyAsFailed(key);
+        lastError = new Error(response.data.status_message || 'TMDb error');
+        continue;
+      }
+
+      return response;
+    } catch (err) {
+      lastError = err;
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        markTmdbKeyAsFailed(key);
+        continue;
+      }
+
+      if (err.response?.status === 429 || (err.response?.data && /rate limit/i.test(err.response.data.status_message || ''))) {
+        markTmdbKeyAsFailed(key);
+        continue;
+      }
+
+      // For other errors, try next key
+    }
+  }
+
+  throw lastError || new Error('No TMDb API keys available');
+};
 
 // OMDb API Keys array for automatic rotation/fallback
 const OMDB_API_KEYS = [
@@ -57,15 +134,9 @@ export const searchMovies = async (req, res) => {
       return res.status(400).json({ error: "Query parameter is required" });
     }
 
-    const response = await axios.get(
-      `https://api.themoviedb.org/3/search/movie`,
-      {
-        params: {
-          api_key: TMDB_API_KEY,
-          query: query,
-        },
-      },
-    );
+    const response = await tmdbGet(`https://api.themoviedb.org/3/search/movie`, {
+      params: { query: query },
+    });
 
     res.json(response.data);
   } catch (error) {
@@ -82,11 +153,8 @@ export const searchTV = async (req, res) => {
       return res.status(400).json({ error: "Query parameter is required" });
     }
 
-    const response = await axios.get(`https://api.themoviedb.org/3/search/tv`, {
-      params: {
-        api_key: TMDB_API_KEY,
-        query: query,
-      },
+    const response = await tmdbGet(`https://api.themoviedb.org/3/search/tv`, {
+      params: { query: query },
     });
 
     res.json(response.data);
@@ -99,9 +167,7 @@ export const searchTV = async (req, res) => {
 // Proxy for TMDb trending movies and TV
 export const trendingMovies = async (_req, res) => {
   try {
-    const response = await axios.get(`https://api.themoviedb.org/3/trending/movie/week`, {
-      params: { api_key: TMDB_API_KEY },
-    });
+    const response = await tmdbGet(`https://api.themoviedb.org/3/trending/movie/week`);
     res.json(response.data);
   } catch (error) {
     console.error("TMDb trending movies error:", error);
@@ -111,9 +177,7 @@ export const trendingMovies = async (_req, res) => {
 
 export const trendingTV = async (_req, res) => {
   try {
-    const response = await axios.get(`https://api.themoviedb.org/3/trending/tv/week`, {
-      params: { api_key: TMDB_API_KEY },
-    });
+    const response = await tmdbGet(`https://api.themoviedb.org/3/trending/tv/week`);
     res.json(response.data);
   } catch (error) {
     console.error("TMDb trending tv error:", error);
@@ -129,15 +193,9 @@ export const getMovieDetails = async (req, res) => {
       return res.status(400).json({ error: "Movie ID is required" });
     }
 
-    const response = await axios.get(
-      `https://api.themoviedb.org/3/movie/${id}`,
-      {
-        params: {
-          api_key: TMDB_API_KEY,
-          append_to_response: "external_ids",
-        },
-      },
-    );
+    const response = await tmdbGet(`https://api.themoviedb.org/3/movie/${id}`, {
+      params: { append_to_response: "external_ids" },
+    });
 
     res.json(response.data);
   } catch (error) {
@@ -150,18 +208,82 @@ export const getMovieDetails = async (req, res) => {
 export const getTVDetails = async (req, res) => {
   try {
     const { id } = req.params;
+    const minimal = req.query?.minimal === 'true';
     if (!id) {
       return res.status(400).json({ error: "TV show ID is required" });
     }
 
-    const response = await axios.get(`https://api.themoviedb.org/3/tv/${id}`, {
-      params: {
-        api_key: TMDB_API_KEY,
-        append_to_response: "external_ids",
-      },
+    const response = await tmdbGet(`https://api.themoviedb.org/3/tv/${id}`, {
+      params: { append_to_response: "external_ids" },
     });
 
-    res.json(response.data);
+    const data = response.data || {};
+
+    // If client requested minimal details (e.g., search preview), return quickly without expensive per-season fetches
+    if (minimal) {
+      return res.json(data);
+    }
+
+    // If seasons array exists, use it to compute a reliable number_of_seasons (exclude specials season 0)
+    if (Array.isArray(data.seasons) && data.seasons.length > 0) {
+      const seasonCountFromArray = data.seasons.filter(s => Number.isFinite(s.season_number) && s.season_number > 0).length;
+      if (!Number.isFinite(data.number_of_seasons) || data.number_of_seasons < seasonCountFromArray) {
+        data.number_of_seasons = seasonCountFromArray;
+      }
+    }
+
+    // If number_of_episodes missing or zero, try to compute by summing seasons
+    const needEpisodeCount = !Number.isFinite(data.number_of_episodes) || data.number_of_episodes <= 0;
+
+    if (Array.isArray(data.seasons) && data.seasons.length > 0) {
+      // Fetch season details for all seasons with a valid season_number (> 0);
+      const seasonNumbers = data.seasons
+        .map((s) => Number.isFinite(s.season_number) ? s.season_number : null)
+        .filter((n) => n !== null && n > 0)
+        .sort((a, b) => a - b);
+
+      if (seasonNumbers.length > 0) {
+        const seasonFetches = seasonNumbers.map(async (seasonNum) => {
+          try {
+            const seasonResp = await tmdbGet(`https://api.themoviedb.org/3/tv/${id}/season/${seasonNum}`);
+            const seasonData = seasonResp.data || {};
+            const episodeCount = Array.isArray(seasonData.episodes) ? seasonData.episodes.length : (Number.isFinite(seasonData.episode_count) ? seasonData.episode_count : null);
+            return { season_number: seasonNum, episode_count: episode_count_safe(episodeCount), name: seasonData.name };
+          } catch (err) {
+            console.warn(`Failed to fetch season ${seasonNum} for TV ${id}:`, err.message || err);
+            return { season_number: seasonNum, episode_count: null };
+          }
+        });
+
+        const seasonsDetailed = await Promise.all(seasonFetches);
+        // Compute total episodes from available season data
+        const totalEpisodes = seasonsDetailed.reduce((sum, s) => sum + (Number.isFinite(s.episode_count) ? s.episode_count : 0), 0);
+
+        if (needEpisodeCount && totalEpisodes > 0) {
+          data.number_of_episodes = totalEpisodes;
+        }
+
+        // Replace seasons array with enriched info (preserve original fields where possible)
+        data.seasons = data.seasons.map((s) => {
+          const found = seasonsDetailed.find((d) => d.season_number === s.season_number);
+          return Object.assign({}, s, found ? { episode_count: found.episode_count, name: found.name || s.name } : {});
+        });
+
+        // Ensure number_of_seasons reflects fetched season details (exclude specials)
+        const countedSeasons = seasonsDetailed.filter(d => Number.isFinite(d.season_number) && d.season_number > 0).length;
+        if (!Number.isFinite(data.number_of_seasons) || data.number_of_seasons < countedSeasons) {
+          data.number_of_seasons = countedSeasons;
+        }
+      }
+    }
+
+    // Helper to normalize episode counts
+    function episode_count_safe(v) {
+      if (Number.isFinite(v) && v >= 0) return v;
+      return null;
+    }
+
+    res.json(data);
   } catch (error) {
     console.error("TMDb TV details error:", error);
     res.status(500).json({ error: "Failed to get TV show details" });
@@ -178,14 +300,7 @@ export const getTVSeason = async (req, res) => {
         .json({ error: "TV show ID and season number are required" });
     }
 
-    const response = await axios.get(
-      `https://api.themoviedb.org/3/tv/${id}/season/${season}`,
-      {
-        params: {
-          api_key: TMDB_API_KEY,
-        },
-      },
-    );
+    const response = await tmdbGet(`https://api.themoviedb.org/3/tv/${id}/season/${season}`);
 
     res.json(response.data);
   } catch (error) {
