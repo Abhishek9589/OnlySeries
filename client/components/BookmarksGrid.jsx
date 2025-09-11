@@ -6,6 +6,269 @@ import { getMovieDetails, getTVDetails, getIMDbRating } from "../lib/api";
 
 const PAGE_SIZE = 36;
 
+// Cache verified IMDb ratings to avoid repeat OMDb calls per item
+const imdbRatingCache = new Map();
+
+function BookmarkCard({
+  item,
+  selectionMode,
+  isSelected,
+  onToggleSelect,
+  onToggleWatchStatus,
+  onRemoveBookmark,
+  onCardClick,
+  onUpdatePatch,
+  hoveredCard,
+  setHoveredCard,
+  formatWatchTime,
+}) {
+  const [loading, setLoading] = useState(false);
+  const [omdbLoading, setOmdbLoading] = useState(false);
+  const [verifiedRating, setVerifiedRating] = useState(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    setVerifiedRating(null);
+    const needsMovieEnrich = item.type === 'movie' && (!Number.isFinite(item.runtime) || !item.imdbRating || item.imdbRating === 'N/A');
+    const needsTVEnrich = item.type === 'tv' && (!Number.isFinite(item.episodes) || !Number.isFinite(item.averageEpisodeRuntime) || !item.imdbRating || item.imdbRating === 'N/A');
+
+    if (!needsMovieEnrich && !needsTVEnrich) return;
+
+    let cancelled = false;
+
+    const doEnrich = async () => {
+      setLoading(true);
+      try {
+        if (item.type === 'movie') {
+          const details = await getMovieDetails(item.id).catch(() => null);
+          const runtime = Number.isFinite(details?.runtime) ? details.runtime : (Number.isFinite(item.runtime) ? item.runtime : undefined);
+          const imdbId = details?.external_ids?.imdb_id;
+          const year = details?.release_date ? String(new Date(details.release_date).getFullYear()) : item.year;
+          const omdbRating = await getIMDbRating({ imdbId, title: details?.title || item.title, year }).catch(() => 'N/A');
+          const imdbRating = (omdbRating && omdbRating !== 'N/A') ? omdbRating : (typeof details?.vote_average === 'number' ? String(details.vote_average.toFixed(1)) : (item.imdbRating || 'N/A'));
+          if (!cancelled && mountedRef.current) {
+            onUpdatePatch({ runtime, imdbRating });
+          }
+        } else if (item.type === 'tv') {
+          const details = await getTVDetails(item.id, { minimal: true }).catch(() => null);
+          let patch = {};
+          if (details) {
+            if (Number.isFinite(details.number_of_seasons)) patch.seasons = details.number_of_seasons;
+            if (Number.isFinite(details.number_of_episodes)) patch.episodes = details.number_of_episodes;
+            if (Array.isArray(details.episode_run_time) && details.episode_run_time.length > 0) patch.averageEpisodeRuntime = Math.round(details.episode_run_time.filter(Number.isFinite).reduce((a,c)=>a+c,0)/details.episode_run_time.filter(Number.isFinite).length);
+          }
+
+          const fullDetails = await getTVDetails(item.id).catch(() => null);
+          if (fullDetails) {
+            if (!patch.seasons && Number.isFinite(fullDetails.number_of_seasons)) patch.seasons = fullDetails.number_of_seasons;
+            if (!patch.episodes && Number.isFinite(fullDetails.number_of_episodes)) patch.episodes = fullDetails.number_of_episodes;
+            if (!patch.averageEpisodeRuntime && Array.isArray(fullDetails.episode_run_time) && fullDetails.episode_run_time.length>0) patch.averageEpisodeRuntime = Math.round(fullDetails.episode_run_time.filter(Number.isFinite).reduce((a,c)=>a+c,0)/fullDetails.episode_run_time.filter(Number.isFinite).length);
+            patch.episode_run_time = Array.isArray(fullDetails.episode_run_time) ? fullDetails.episode_run_time : (item.episode_run_time || []);
+            patch.genres = Array.isArray(fullDetails.genres) ? fullDetails.genres : item.genres;
+          }
+
+          const imdbId = fullDetails?.external_ids?.imdb_id || details?.external_ids?.imdb_id;
+          const year = fullDetails?.first_air_date ? String(new Date(fullDetails.first_air_date).getFullYear()) : item.year;
+          const omdbRating = await getIMDbRating({ imdbId, title: fullDetails?.name || item.title, year }).catch(() => 'N/A');
+          const imdbRating = (omdbRating && omdbRating !== 'N/A') ? omdbRating : (typeof fullDetails?.vote_average === 'number' ? String(fullDetails.vote_average.toFixed(1)) : (item.imdbRating || 'N/A'));
+          patch.imdbRating = imdbRating;
+
+          if (!cancelled && mountedRef.current) {
+            onUpdatePatch(patch);
+          }
+        }
+      } catch (err) {
+      } finally {
+        if (!cancelled && mountedRef.current) setLoading(false);
+      }
+    };
+
+    doEnrich();
+
+    return () => {
+      cancelled = true;
+      mountedRef.current = false;
+    };
+  }, [item.id]);
+
+  const ensureVerifiedImdbRating = async () => {
+    const cacheKey = `${item.type}-${item.id}`;
+    if (imdbRatingCache.has(cacheKey)) {
+      const cached = imdbRatingCache.get(cacheKey);
+      if (mountedRef.current) setVerifiedRating(cached);
+      return;
+    }
+    if (omdbLoading) return;
+    setOmdbLoading(true);
+    try {
+      let imdbId = null;
+      let title = item.title;
+      let year = item.year;
+      try {
+        if (item.type === 'movie') {
+          const details = await getMovieDetails(item.id, { timeout: 5000 }).catch(() => null);
+          imdbId = details?.external_ids?.imdb_id || null;
+          title = details?.title || title;
+          year = details?.release_date ? String(new Date(details.release_date).getFullYear()) : year;
+        } else if (item.type === 'tv') {
+          const details = await getTVDetails(item.id, { minimal: true, timeout: 4000 }).catch(() => null);
+          imdbId = details?.external_ids?.imdb_id || null;
+          title = details?.name || title;
+          year = details?.first_air_date ? String(new Date(details.first_air_date).getFullYear()) : year;
+        }
+      } catch {}
+
+      let rating = await getIMDbRating({ imdbId, title, year }).catch(() => 'N/A');
+      if (!rating || rating === 'N/A') {
+        rating = await getIMDbRating({ title, year }).catch(() => 'N/A');
+      }
+      if (rating && typeof rating === 'string') {
+        imdbRatingCache.set(cacheKey, rating);
+        if (mountedRef.current) setVerifiedRating(rating);
+      }
+    } finally {
+      if (mountedRef.current) setOmdbLoading(false);
+    }
+  };
+
+  const handleRemoveClick = (e, id, type) => {
+    e.stopPropagation();
+    onRemoveBookmark(id, type);
+  };
+
+  if (loading) {
+    return (
+      <div className="relative w-full max-w-[220px] animate-pulse">
+        <div className="aspect-[2/3] rounded-2xl bg-card/60 border border-border/40" />
+        <div className="mt-3 h-4 bg-card/50 rounded w-3/4 mx-auto" />
+        <div className="mt-2 h-3 bg-card/40 rounded w-1/2 mx-auto" />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`relative group w-full max-w-[220px] ${selectionMode && item.type === 'movie' ? 'cursor-pointer' : 'cursor-pointer'}`}
+      onMouseEnter={() => { setHoveredCard(`${item.type}-${item.id}`); ensureVerifiedImdbRating(); }}
+      onMouseLeave={() => setHoveredCard(null)}
+      onClick={() => {
+        if (selectionMode && item.type === 'movie') {
+          onToggleSelect && onToggleSelect(item);
+        } else {
+          onCardClick(item);
+        }
+      }}
+      onKeyDown={(e) => {
+        if (selectionMode && item.type === 'movie' && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          onToggleSelect && onToggleSelect(item);
+        }
+      }}
+      role={selectionMode && item.type === 'movie' ? 'button' : undefined}
+      tabIndex={selectionMode && item.type === 'movie' ? 0 : -1}
+      aria-pressed={selectionMode && item.type === 'movie' ? isSelected(item) : undefined}
+      aria-disabled={selectionMode && item.type !== 'movie' ? true : undefined}
+    >
+      <div className={`relative aspect-[2/3] rounded-2xl overflow-hidden bg-card/80 backdrop-blur-sm border ${isSelected(item) ? 'border-primary ring-2 ring-ring' : 'border-border/30'} shadow-xl transition-all duration-300 group-hover:scale-105 group-hover:shadow-2xl`}>
+        <FallbackImage
+          src={item.poster}
+          alt={item.title}
+          type={item.type}
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+        />
+
+        {selectionMode && item.type === 'movie' && (
+          <label className="absolute top-3 left-3 z-10 flex items-center">
+            <input
+              type="checkbox"
+              aria-label={`Select ${item.title}`}
+              checked={isSelected(item)}
+              onChange={(e) => {
+                e.stopPropagation();
+                onToggleSelect && onToggleSelect(item);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className={`w-5 h-5 rounded-sm border bg-background focus:outline-none focus:ring-2 focus:ring-ring accent-primary ${isSelected(item) ? 'border-primary' : 'border-border'}`}
+            />
+          </label>
+        )}
+
+        {hoveredCard === `${item.type}-${item.id}` && !selectionMode && (
+          <div className="absolute inset-0 bg-black/80 flex flex-col justify-between p-4 backdrop-blur-sm">
+            <div className="flex justify-between items-start">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleWatchStatus(item.id, item.type);
+                }}
+                className={`p-2 rounded-lg transition-all ${
+                  item.watchStatus === 'watched'
+                    ? 'bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30'
+                    : 'bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30'
+                }`}
+                title={item.watchStatus === 'watched' ? 'Watched' : 'Will Watch'}
+              >
+                {item.watchStatus === 'watched' ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+              </button>
+              <button
+                onClick={(e) => handleRemoveClick(e, item.id, item.type)}
+                className="bg-destructive/90 backdrop-blur-sm text-white rounded-full p-2 hover:bg-destructive transition-colors shadow-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="text-white space-y-3">
+              <div className="flex items-center gap-2 text-sm">
+                <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                <span className="inline-flex items-center gap-2">
+                  <span className="px-1.5 py-0.5 rounded bg-yellow-400/20 text-yellow-300 text-[10px] font-semibold">IMDb</span>
+                  {verifiedRating || item.imdbRating}
+                  {omdbLoading ? <span className="ml-1 w-3 h-3 border-2 border-yellow-300/70 border-t-transparent rounded-full animate-spin inline-block"></span> : null}
+                </span>
+              </div>
+
+              {item.type === 'tv' ? (
+                <>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Tv className="w-4 h-4" />
+                    <span>
+                      {item.seasons || 1} Season
+                      {(item.seasons || 1) !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-sm">
+                    <Play className="w-4 h-4" />
+                    <span>{item.episodes || 10} Episodes</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-sm">
+                    <Clock className="w-4 h-4" />
+                    <span>{formatWatchTime(item)}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Clock className="w-4 h-4" />
+                    <span>{formatWatchTime(item)}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PaginationControlsBar({
   currentPage,
   totalPages,
@@ -376,207 +639,6 @@ export default function BookmarksGrid({
         className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6 lg:gap-8 justify-items-center place-items-center"
       >
         {visibleCards.map((card) => {
-          const BookmarkCard = ({ item, onUpdatePatch }) => {
-            const [loading, setLoading] = useState(false);
-            const mountedRef = useRef(true);
-
-            useEffect(() => {
-              mountedRef.current = true;
-              const needsMovieEnrich = item.type === 'movie' && (!Number.isFinite(item.runtime) || !item.imdbRating || item.imdbRating === 'N/A');
-              const needsTVEnrich = item.type === 'tv' && (!Number.isFinite(item.episodes) || !Number.isFinite(item.averageEpisodeRuntime) || !item.imdbRating || item.imdbRating === 'N/A');
-
-              if (!needsMovieEnrich && !needsTVEnrich) return;
-
-              let cancelled = false;
-
-              const doEnrich = async () => {
-                setLoading(true);
-                try {
-                  if (item.type === 'movie') {
-                    const details = await getMovieDetails(item.id).catch(() => null);
-                    const runtime = Number.isFinite(details?.runtime) ? details.runtime : (Number.isFinite(item.runtime) ? item.runtime : undefined);
-                    const imdbId = details?.external_ids?.imdb_id;
-                    const year = details?.release_date ? String(new Date(details.release_date).getFullYear()) : item.year;
-                    const omdbRating = await getIMDbRating({ imdbId, title: details?.title || item.title, year }).catch(() => 'N/A');
-                    const imdbRating = (omdbRating && omdbRating !== 'N/A') ? omdbRating : (typeof details?.vote_average === 'number' ? String(details.vote_average.toFixed(1)) : (item.imdbRating || 'N/A'));
-                    if (!cancelled && mountedRef.current) {
-                      onUpdatePatch({ runtime, imdbRating });
-                    }
-                  } else if (item.type === 'tv') {
-                    // minimal fetch first to be fast; then fetch full details in background
-                    const details = await getTVDetails(item.id, { minimal: true }).catch(() => null);
-                    let patch = {};
-                    if (details) {
-                      if (Number.isFinite(details.number_of_seasons)) patch.seasons = details.number_of_seasons;
-                      if (Number.isFinite(details.number_of_episodes)) patch.episodes = details.number_of_episodes;
-                      if (Array.isArray(details.episode_run_time) && details.episode_run_time.length > 0) patch.averageEpisodeRuntime = Math.round(details.episode_run_time.filter(Number.isFinite).reduce((a,c)=>a+c,0)/details.episode_run_time.filter(Number.isFinite).length);
-                    }
-
-                    const fullDetails = await getTVDetails(item.id).catch(() => null);
-                    if (fullDetails) {
-                      if (!patch.seasons && Number.isFinite(fullDetails.number_of_seasons)) patch.seasons = fullDetails.number_of_seasons;
-                      if (!patch.episodes && Number.isFinite(fullDetails.number_of_episodes)) patch.episodes = fullDetails.number_of_episodes;
-                      if (!patch.averageEpisodeRuntime && Array.isArray(fullDetails.episode_run_time) && fullDetails.episode_run_time.length>0) patch.averageEpisodeRuntime = Math.round(fullDetails.episode_run_time.filter(Number.isFinite).reduce((a,c)=>a+c,0)/fullDetails.episode_run_time.filter(Number.isFinite).length);
-                      patch.episode_run_time = Array.isArray(fullDetails.episode_run_time) ? fullDetails.episode_run_time : (item.episode_run_time || []);
-                      patch.genres = Array.isArray(fullDetails.genres) ? fullDetails.genres : item.genres;
-                    }
-
-                    const imdbId = fullDetails?.external_ids?.imdb_id || details?.external_ids?.imdb_id;
-                    const year = fullDetails?.first_air_date ? String(new Date(fullDetails.first_air_date).getFullYear()) : item.year;
-                    const omdbRating = await getIMDbRating({ imdbId, title: fullDetails?.name || item.title, year }).catch(() => 'N/A');
-                    const imdbRating = (omdbRating && omdbRating !== 'N/A') ? omdbRating : (typeof fullDetails?.vote_average === 'number' ? String(fullDetails.vote_average.toFixed(1)) : (item.imdbRating || 'N/A'));
-                    patch.imdbRating = imdbRating;
-
-                    if (!cancelled && mountedRef.current) {
-                      onUpdatePatch(patch);
-                    }
-                  }
-                } catch (err) {
-                  // don't throw - just stop loading
-                } finally {
-                  if (!cancelled && mountedRef.current) setLoading(false);
-                }
-              };
-
-              doEnrich();
-
-              return () => {
-                cancelled = true;
-                mountedRef.current = false;
-              };
-            }, [item.id]);
-
-            if (loading) {
-              return (
-                <div className="relative w-full max-w-[220px] animate-pulse">
-                  <div className="aspect-[2/3] rounded-2xl bg-card/60 border border-border/40" />
-                  <div className="mt-3 h-4 bg-card/50 rounded w-3/4 mx-auto" />
-                  <div className="mt-2 h-3 bg-card/40 rounded w-1/2 mx-auto" />
-                </div>
-              );
-            }
-
-            // Render normal card when not loading
-            return (
-              <div
-                className={`relative group w-full max-w-[220px] ${selectionMode && item.type === "movie" ? "cursor-pointer" : "cursor-pointer"}`}
-                onMouseEnter={() => setHoveredCard(`${item.type}-${item.id}`)}
-                onMouseLeave={() => setHoveredCard(null)}
-                onClick={() => {
-                  // Clear hover overlay immediately to avoid sticky hover after opening dialog
-                  setHoveredCard(null);
-                  if (selectionMode && item.type === "movie") {
-                    onToggleSelect && onToggleSelect(item);
-                  } else {
-                    onCardClick(item);
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (selectionMode && item.type === "movie" && (e.key === "Enter" || e.key === " ")) {
-                    e.preventDefault();
-                    onToggleSelect && onToggleSelect(item);
-                  }
-                }}
-                role={selectionMode && item.type === "movie" ? "button" : undefined}
-                tabIndex={selectionMode && item.type === "movie" ? 0 : -1}
-                aria-pressed={selectionMode && item.type === "movie" ? isSelected(item) : undefined}
-                aria-disabled={selectionMode && item.type !== "movie" ? true : undefined}
-              >
-                <div className={`relative aspect-[2/3] rounded-2xl overflow-hidden bg-card/80 backdrop-blur-sm border ${isSelected(item) ? "border-primary ring-2 ring-ring" : "border-border/30"} shadow-xl transition-all duration-300 group-hover:scale-105 group-hover:shadow-2xl`}>
-                  <FallbackImage
-                    src={item.poster}
-                    alt={item.title}
-                    type={item.type}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                  />
-
-                  {selectionMode && item.type === "movie" && (
-                    <label className="absolute top-3 left-3 z-10 flex items-center">
-                      <input
-                        type="checkbox"
-                        aria-label={`Select ${item.title}`}
-                        checked={isSelected(item)}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          onToggleSelect && onToggleSelect(item);
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                        className={`w-5 h-5 rounded-sm border bg-background focus:outline-none focus:ring-2 focus:ring-ring accent-primary ${isSelected(item) ? "border-primary" : "border-border"}`}
-                      />
-                    </label>
-                  )}
-
-                  {hoveredCard === `${item.type}-${item.id}` && !selectionMode && (
-                    <div className="absolute inset-0 bg-black/80 flex flex-col justify-between p-4 backdrop-blur-sm">
-                      <div className="flex justify-between items-start">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleWatchStatus(item.id, item.type);
-                          }}
-                          className={`p-2 rounded-lg transition-all ${
-                            item.watchStatus === "watched"
-                              ? "bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
-                              : "bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30"
-                          }`}
-                          title={item.watchStatus === "watched" ? "Watched" : "Will Watch"}
-                        >
-                          {item.watchStatus === "watched" ? (
-                            <EyeOff className="w-4 h-4" />
-                          ) : (
-                            <Eye className="w-4 h-4" />
-                          )}
-                        </button>
-                        <button
-                          onClick={(e) => handleRemoveClick(e, item.id, item.type)}
-                          className="bg-destructive/90 backdrop-blur-sm text-white rounded-full p-2 hover:bg-destructive transition-colors shadow-lg"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      <div className="text-white space-y-3">
-                        <div className="flex items-center gap-2 text-sm">
-                          <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                          <span>{item.imdbRating}</span>
-                        </div>
-
-                        {item.type === "tv" ? (
-                          <>
-                            <div className="flex items-center gap-2 text-sm">
-                              <Tv className="w-4 h-4" />
-                              <span>
-                                {item.seasons || 1} Season
-                                {(item.seasons || 1) !== 1 ? "s" : ""}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center gap-2 text-sm">
-                              <Play className="w-4 h-4" />
-                              <span>{item.episodes || 10} Episodes</span>
-                            </div>
-
-                            <div className="flex items-center gap-2 text-sm">
-                              <Clock className="w-4 h-4" />
-                              <span>{formatWatchTime(item)}</span>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="flex items-center gap-2 text-sm">
-                              <Clock className="w-4 h-4" />
-                              <span>{formatWatchTime(item)}</span>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          };
-
           if (card.kind === "franchise") {
             const { franchise, movies } = card;
             return (
@@ -585,7 +647,7 @@ export default function BookmarksGrid({
                 className="relative group cursor-pointer w-full max-w-[220px]"
                 onMouseEnter={() => setHoveredCard(card.franchiseKey)}
                 onMouseLeave={() => setHoveredCard(null)}
-                onClick={() => { setHoveredCard(null); onCardClick({ ...movies[0], franchise }); }}
+                onClick={() => onCardClick({ ...movies[0], franchise })}
               >
                 <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-gradient-to-br from-card via-card/90 to-card/80 border border-border/50 shadow-xl transition-all duration-300 group-hover:scale-105 group-hover:shadow-2xl group-hover:border-primary/30">
                   <FallbackImage
@@ -679,16 +741,24 @@ export default function BookmarksGrid({
           }
 
           const item = card.item;
-          // Render the card through BookmarkCard component which handles enrichment and loader UI
           return (
             <BookmarkCard
               key={`${item.type}-${item.id}`}
               item={item}
+              selectionMode={selectionMode}
+              isSelected={isSelected}
+              onToggleSelect={onToggleSelect}
+              onToggleWatchStatus={onToggleWatchStatus}
+              onRemoveBookmark={onRemoveBookmark}
+              onCardClick={onCardClick}
               onUpdatePatch={(patch) => {
                 if (typeof onUpdateBookmark === 'function') {
                   onUpdateBookmark(item.id, item.type, patch);
                 }
               }}
+              hoveredCard={hoveredCard}
+              setHoveredCard={setHoveredCard}
+              formatWatchTime={formatWatchTime}
             />
           );
         })}

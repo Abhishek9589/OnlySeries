@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { MoreHorizontal, Filter, Eye, EyeOff, ArrowUpDown, RefreshCw, Tv, Play } from "lucide-react";
 import SearchBar from "../components/SearchBar";
 import Timer from "../components/Timer";
@@ -648,13 +648,6 @@ export default function Index() {
                 cancelText="Cancel"
                 onCancel={() => setShowResetConfirm(false)}
                 onConfirm={() => {
-                  try {
-                    localStorage.removeItem("onlyseries-bookmarks");
-                    localStorage.removeItem("onlyseries-franchise-migrated-v1");
-                    localStorage.removeItem(UI_STATE_KEY);
-                  } catch (e) {
-                    console.warn("Failed clearing localStorage during reset", e);
-                  }
 
                   // Reset UI state
                   setBookmarks([]);
@@ -672,7 +665,7 @@ export default function Index() {
                   setMissingRatings([]);
 
                   setShowResetConfirm(false);
-                  setTimeout(() => window.location.reload(), 200);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
                 }}
               />
             )}
