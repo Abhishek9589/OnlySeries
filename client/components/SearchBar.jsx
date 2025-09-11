@@ -166,7 +166,7 @@ const SearchBar = memo(function SearchBar({
       const MAX_TOTAL = 50; // allow more than top-10
       const combinedEntries = [...moviesWithPosters, ...seriesWithPosters].slice(0, MAX_TOTAL);
 
-      const MAX_DETAILED = 7;
+      const MAX_DETAILED = 5; // limit detailed fetches to speed up
       const detailed = combinedEntries.slice(0, MAX_DETAILED);
       const basic = combinedEntries.slice(MAX_DETAILED);
 
@@ -175,13 +175,9 @@ const SearchBar = memo(function SearchBar({
           const movie = entry.raw;
           try {
             const year = new Date(movie.release_date).getFullYear().toString();
-            const movieDetails = await getMovieDetails(movie.id).catch(() => null);
-            const imdbId = movieDetails?.external_ids?.imdb_id || undefined;
-            let rating = await getIMDbRating({ imdbId, title: movie.title, year }).catch(() => "N/A");
-            // Fallback to TMDb vote_average if OMDb had no rating
-            if ((rating === "N/A" || rating == null) && typeof movieDetails?.vote_average === "number") {
-              rating = String(movieDetails.vote_average.toFixed(1));
-            }
+            // Only fetch movie details (no OMDb) to keep search snappy
+            const movieDetails = await getMovieDetails(movie.id, { timeout: 4000 }).catch(() => null);
+            const rating = typeof movieDetails?.vote_average === "number" ? String(movieDetails.vote_average.toFixed(1)) : (typeof movie.vote_average === 'number' ? String(movie.vote_average.toFixed(1)) : "N/A");
             return {
               id: movie.id,
               title: movie.title,
@@ -198,12 +194,9 @@ const SearchBar = memo(function SearchBar({
           const series = entry.raw;
           try {
             const year = new Date(series.first_air_date).getFullYear().toString();
-            const seriesDetails = await getTVDetails(series.id).catch(() => null);
-            const imdbId = seriesDetails?.external_ids?.imdb_id || undefined;
-            let rating = await getIMDbRating({ imdbId, title: series.name, year }).catch(() => "N/A");
-            if ((rating === "N/A" || rating == null) && typeof seriesDetails?.vote_average === "number") {
-              rating = String(seriesDetails.vote_average.toFixed(1));
-            }
+            // Use minimal TV details (no per-season fetches) for search
+            const seriesDetails = await getTVDetails(series.id, { minimal: true, timeout: 3000 }).catch(() => null);
+            const rating = typeof seriesDetails?.vote_average === "number" ? String(seriesDetails.vote_average.toFixed(1)) : (typeof series.vote_average === 'number' ? String(series.vote_average.toFixed(1)) : "N/A");
             return {
               id: series.id,
               title: series.name,
