@@ -1,9 +1,15 @@
 {
   "version": 2,
+  "buildCommand": "npm run build:client",
+  "outputDirectory": "dist/spa",
   "rewrites": [
     {
       "source": "/api/:path*",
       "destination": "https://onlyseriestest.onrender.com/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/"
     }
   ]
 }
