@@ -686,7 +686,23 @@ export default function Index() {
 
           {/* Search Bar */}
           <div className={`mb-12 ${!hasBookmarks ? "" : "mt-8"}`}>
-            <SearchBar onAddBookmark={handleAddBookmark} isVisible={true} bookmarks={bookmarks} />
+            <SearchBar
+              onAddBookmark={handleAddBookmark}
+              isVisible={true}
+              bookmarks={bookmarks}
+              onBulkFranchise={(movies) => {
+                try {
+                  const keys = Array.isArray(movies)
+                    ? movies.map((m) => `${m.type}-${m.id}`)
+                    : [];
+                  if (keys.length === 0) return;
+                  setSelectionMode(true);
+                  setSelectedKeys(keys);
+                  setShowFranchiseDialog(true);
+                  setFranchiseFilter("");
+                } catch (e) {}
+              }}
+            />
           </div>
 
           {/* Timer - Only shown when there are bookmarks */}

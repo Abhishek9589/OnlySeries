@@ -18,6 +18,7 @@ const SearchBar = memo(function SearchBar({
   onAddBookmark,
   isVisible,
   bookmarks,
+  onBulkFranchise,
 }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [results, setResults] = useState([]);
@@ -412,7 +413,28 @@ const SearchBar = memo(function SearchBar({
                       <button onClick={selectVisible} className="px-3 py-1 text-sm rounded-full border bg-card/60 hover:bg-card">Select visible</button>
                       <button onClick={addAllVisible} className="px-3 py-1 text-sm rounded-full border bg-card/60 hover:bg-card">Add all visible</button>
                       <button onClick={clearSelection} className="px-3 py-1 text-sm rounded-full border bg-card/60 hover:bg-card">Clear</button>
-                      <button onClick={() => { setBulkMode(false); clearSelection(); }} className="px-3 py-1 text-sm rounded-full border bg-card/60 hover:bg-card">Done</button>
+                      <button
+                        onClick={() => {
+                          const items = results.filter((r) => selectedKeys.includes(makeKey(r)));
+                          if (items.length > 0) {
+                            items.forEach((item) => {
+                              onAddBookmark(item);
+                              incrementSelectionBoost(makeKey(item));
+                            });
+                            setResults((prev) => prev.filter((r) => !items.some((v) => makeKey(v) === makeKey(r))));
+
+                            const movies = items.filter((it) => it.type === 'movie');
+                            if (movies.length > 0 && typeof onBulkFranchise === 'function') {
+                              onBulkFranchise(movies);
+                            }
+                          }
+                          setBulkMode(false);
+                          clearSelection();
+                        }}
+                        className="px-3 py-1 text-sm rounded-full border bg-card/60 hover:bg-card"
+                      >
+                        Done
+                      </button>
                     </>
                   )}
                 </div>
