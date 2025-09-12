@@ -426,6 +426,19 @@ export default function Index() {
     setDialogOpen(true);
   };
 
+  const handleRenameFranchise = (oldName, newName) => {
+    const from = String(oldName || "").trim();
+    const to = String(newName || "").trim();
+    if (!from || !to || from === to) return;
+    setBookmarks((prev) => prev.map((it) => (it.type === "movie" && String(it.franchise || "") === from ? { ...it, franchise: to } : it)));
+    setSelectedItem((prev) => {
+      if (prev && String(prev.franchise || "") === from) {
+        return { ...prev, franchise: to };
+      }
+      return prev;
+    });
+  };
+
   const downloadBookmarks = () => {
     const dataStr = JSON.stringify(bookmarks, null, 2);
     const dataBlob = new Blob([dataStr], { type: "application/json" });
@@ -827,6 +840,7 @@ export default function Index() {
                   )
                 : undefined
             }
+            onRenameFranchise={handleRenameFranchise}
           />
         </div>
       </div>

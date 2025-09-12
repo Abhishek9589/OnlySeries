@@ -11,7 +11,7 @@ import {
 } from "../lib/api";
 
 const LS_SELECTION_BOOSTS = "selectionBoosts";
-const LS_SEARCH_CACHE = "searchCacheV1";
+const LS_SEARCH_CACHE = "searchCacheV2";
 const LS_MISSES = "searchMisses";
 
 const SearchBar = memo(function SearchBar({
@@ -24,9 +24,11 @@ const SearchBar = memo(function SearchBar({
   const [isLoading, setIsLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const [activeTab, setActiveTab] = useState("all"); // all | tv | movie
+  const [activeTab, setActiveTab] = useState("tv"); // tv | movie
   const [visibleCount, setVisibleCount] = useState(10);
-    const isOffline = useOffline();
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedKeys, setSelectedKeys] = useState([]);
+  const isOffline = useOffline();
 
   // Refs to avoid stale closures in async handlers
   const bookmarksRef = useRef(bookmarks);
@@ -75,22 +77,30 @@ const SearchBar = memo(function SearchBar({
 
 
   // Improved search similarity function with selection boosts
+  const stripDiacritics = (s) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '');
+  const norm = (s) => stripDiacritics(String(s || '').toLowerCase().trim());
   const calculateSimilarity = (text, query, itemKey) => {
-    const textLower = text.toLowerCase().trim();
-    const queryLower = query.toLowerCase().trim();
+    const t = norm(text);
+    const q = norm(query);
 
-    if (textLower === queryLower) return 12;
-    if (textLower.startsWith(queryLower)) return 10;
-    if (textLower.includes(queryLower)) return 8;
+    const ALIASES = {
+      'pokemon': ['pocket monsters'],
+    };
 
-    const words = queryLower.split(' ').filter(word => word.length > 0);
+    const altQueries = [q, ...(ALIASES[q] || []).map(norm)];
+
+    if (altQueries.some((qq) => t === qq)) return 12;
+    if (altQueries.some((qq) => t.startsWith(qq))) return 10;
+    if (altQueries.some((qq) => t.includes(qq))) return 8;
+
+    const words = q.split(' ').filter((w) => w);
     let matchedWords = 0;
-    for (const word of words) if (textLower.includes(word)) matchedWords++;
+    for (const word of words) if (t.includes(word)) matchedWords++;
     let wordScore = (matchedWords / Math.max(words.length, 1)) * 6;
 
     const boosts = getSelectionBoosts();
-    const freq = boosts[itemKey] || 0; // boost frequently selected entities
-    const freqBoost = Math.min(freq, 5) * 0.5; // cap boost
+    const freq = boosts[itemKey] || 0;
+    const freqBoost = Math.min(freq, 5) * 0.5;
 
     return wordScore + freqBoost;
   };
@@ -140,7 +150,13 @@ const SearchBar = memo(function SearchBar({
 
     const cached = getCachedSearch(normalizedQuery);
     if (cached && requestId === requestSeqRef.current) {
-      setResults(cached);
+      const filteredCached = cached.filter((item) => {
+        const isAlreadyAdded = bookmarksRef.current.some(
+          (bookmark) => Number(bookmark.id) === Number(item.id) && bookmark.type === item.type
+        );
+        return !isAlreadyAdded;
+      });
+      setResults(filteredCached);
       setShowResults(true);
       setIsLoading(false);
       return;
@@ -152,19 +168,15 @@ const SearchBar = memo(function SearchBar({
 
     try {
       const [moviesData, seriesData] = await Promise.all([
-        searchMovies(normalizedQuery).catch(() => []),
-        searchTV(normalizedQuery).catch(() => []),
+        searchMovies(normalizedQuery, { maxPages: 10 }).catch(() => []),
+        searchTV(normalizedQuery, { maxPages: 10 }).catch(() => []),
       ]);
 
-      const moviesWithPosters = (moviesData || [])
-        .filter((movie) => movie.poster_path && movie.release_date)
-        .map((m) => ({ kind: "movie", raw: m }));
-      const seriesWithPosters = (seriesData || [])
-        .filter((series) => series.poster_path && series.first_air_date)
-        .map((s) => ({ kind: "tv", raw: s }));
+      const moviesEntries = (moviesData || []).map((m) => ({ kind: "movie", raw: m }));
+      const seriesEntries = (seriesData || []).map((s) => ({ kind: "tv", raw: s }));
 
-      const MAX_TOTAL = 50; // allow more than top-10
-      const combinedEntries = [...moviesWithPosters, ...seriesWithPosters].slice(0, MAX_TOTAL);
+      const MAX_TOTAL = 200;
+      const combinedEntries = [...moviesEntries, ...seriesEntries].slice(0, MAX_TOTAL);
 
       const MAX_DETAILED = 5; // limit detailed fetches to speed up
       const detailed = combinedEntries.slice(0, MAX_DETAILED);
@@ -307,9 +319,33 @@ const SearchBar = memo(function SearchBar({
   };
 
   const filteredByTab = results.filter((r) =>
-    activeTab === "all" ? true : activeTab === "tv" ? r.type === "tv" : r.type === "movie"
+    activeTab === "tv" ? r.type === "tv" : r.type === "movie"
   );
   const visibleResults = filteredByTab.slice(0, visibleCount);
+
+  const makeKey = (it) => `${it.type}:${it.id}`;
+  const isSelected = (it) => selectedKeys.includes(makeKey(it));
+  const toggleSelect = (it) => {
+    const key = makeKey(it);
+    setSelectedKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+  };
+  const selectVisible = () => {
+    const keys = visibleResults.map(makeKey);
+    setSelectedKeys(keys);
+  };
+  const clearSelection = () => setSelectedKeys([]);
+  const addAllVisible = () => {
+    const items = visibleResults;
+    if (items.length === 0) return;
+    items.forEach((item) => {
+      onAddBookmark(item);
+      incrementSelectionBoost(makeKey(item));
+    });
+    // Remove added items from current results immediately
+    setResults((prev) => prev.filter((r) => !items.some((v) => makeKey(v) === makeKey(r))));
+    // Clear selection of any added items
+    setSelectedKeys((prev) => prev.filter((k) => !items.some((v) => makeKey(v) === k)));
+  };
 
   const onNoResultsLogMiss = useCallback(() => {
     try {
@@ -360,18 +396,39 @@ const SearchBar = memo(function SearchBar({
             <div>
               <div className="flex items-center gap-2 p-3 border-b border-border/30 sticky top-0 bg-card/95 backdrop-blur-md z-10">
                 <span className="text-sm text-muted-foreground">Results</span>
-                <div className="ml-auto flex gap-2">
-                  <button onClick={() => { setActiveTab("all"); setVisibleCount(10); }} className={`px-3 py-1 text-sm rounded-full border ${activeTab==='all' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>All ({results.length})</button>
-                  <button onClick={() => { setActiveTab("tv"); setVisibleCount(10); }} className={`px-3 py-1 text-sm rounded-full border ${activeTab==='tv' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>TV ({results.filter(r=>r.type==='tv').length})</button>
-                  <button onClick={() => { setActiveTab("movie"); setVisibleCount(10); }} className={`px-3 py-1 text-sm rounded-full border ${activeTab==='movie' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>Movies ({results.filter(r=>r.type==='movie').length})</button>
+                <div className="ml-auto flex items-center gap-2 flex-wrap">
+                  {!bulkMode && (
+                    <>
+                      <button onClick={() => { setActiveTab("tv"); setVisibleCount(10); }} className={`px-3 py-1 text-sm rounded-full border ${activeTab==='tv' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>TV ({results.filter(r=>r.type==='tv').length})</button>
+                      <button onClick={() => { setActiveTab("movie"); setVisibleCount(10); }} className={`px-3 py-1 text-sm rounded-full border ${activeTab==='movie' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>Movies ({results.filter(r=>r.type==='movie').length})</button>
+                      <button onClick={() => { setBulkMode(true); clearSelection(); }} className="px-3 py-1 text-sm rounded-full border bg-card/60 hover:bg-card">Bulk add</button>
+                    </>
+                  )}
+                  {bulkMode && (
+                    <>
+                      <button className="px-3 py-1 text-sm rounded-full border bg-primary text-primary-foreground">Bulk add</button>
+                      <button onClick={() => { setActiveTab("tv"); setVisibleCount(10); }} className={`px-3 py-1 text-sm rounded-full border ${activeTab==='tv' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>TV</button>
+                      <button onClick={() => { setActiveTab("movie"); setVisibleCount(10); }} className={`px-3 py-1 text-sm rounded-full border ${activeTab==='movie' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>Movies</button>
+                      <button onClick={selectVisible} className="px-3 py-1 text-sm rounded-full border bg-card/60 hover:bg-card">Select visible</button>
+                      <button onClick={addAllVisible} className="px-3 py-1 text-sm rounded-full border bg-card/60 hover:bg-card">Add all visible</button>
+                      <button onClick={clearSelection} className="px-3 py-1 text-sm rounded-full border bg-card/60 hover:bg-card">Clear</button>
+                      <button onClick={() => { setBulkMode(false); clearSelection(); }} className="px-3 py-1 text-sm rounded-full border bg-card/60 hover:bg-card">Done</button>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="divide-y divide-border/30">
                 {visibleResults.map((item) => (
                   <div
                     key={`${item.type}-${item.id}`}
-                    onClick={() => handleAddBookmark(item)}
-                    className="flex items-center p-4 hover:bg-accent/20 cursor-pointer transition-colors group"
+                    onClick={() => {
+                      if (bulkMode) {
+                        toggleSelect(item);
+                      } else {
+                        handleAddBookmark(item);
+                      }
+                    }}
+                    className={`flex items-center p-4 cursor-pointer transition-colors group ${bulkMode && isSelected(item) ? 'bg-primary/15' : 'hover:bg-accent/20'}`}
                   >
                     <div className="relative mr-4">
                       <FallbackImage
@@ -395,6 +452,18 @@ const SearchBar = memo(function SearchBar({
                         )}
                       </div>
                     </div>
+                    {bulkMode && (
+                      <div className="ml-3 flex items-center">
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4 rounded-sm border bg-background accent-primary"
+                          checked={isSelected(item)}
+                          onChange={(e) => { e.stopPropagation(); toggleSelect(item); }}
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label={`Select ${item.title}`}
+                        />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

@@ -32,7 +32,7 @@ export const getIMDbRating = async ({ title, year, imdbId } = {}) => {
 };
 
 // Simple local cache for TMDb search results to speed up repeated queries
-const TMDB_SEARCH_CACHE_KEY = 'tmdb_search_cache_v1';
+const TMDB_SEARCH_CACHE_KEY = 'tmdb_search_cache_v2';
 const TMDB_SEARCH_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 const readTmdbSearchCache = (q) => {
@@ -58,46 +58,102 @@ const writeTmdbSearchCache = (q, data) => {
   } catch (e) {}
 };
 
-export const searchMovies = async (query) => {
+export const searchMovies = async (query, options = {}) => {
   const q = String(query || '').trim().toLowerCase();
   if (!q) return [];
 
-  // Try local cache first
+  const maxPages = Number.isFinite(options.maxPages) ? options.maxPages : 5;
+
+  // Try local cache first (aggregated)
   const cached = readTmdbSearchCache('movie:' + q);
   if (cached) return cached;
 
   try {
-    const response = await axios.get('/api/search/movies', {
-      params: { query },
+    // Page 1
+    const first = await axios.get('/api/search/movies', {
+      params: { query, page: 1 },
       timeout: 8000,
     });
-    const results = response.data.results || [];
-    writeTmdbSearchCache('movie:' + q, results);
-    return results;
+    const data1 = first.data || {};
+    const totalPages = Math.max(1, Math.min(Number(data1.total_pages) || 1, maxPages));
+    let all = Array.isArray(data1.results) ? data1.results : [];
+
+    if (totalPages > 1) {
+      const pages = [];
+      for (let p = 2; p <= totalPages; p++) {
+        pages.push(
+          axios.get('/api/search/movies', {
+            params: { query, page: p },
+            timeout: 8000,
+          }).then(r => (r.data?.results || [])).catch(() => [])
+        );
+      }
+      const rest = await Promise.all(pages);
+      rest.forEach(arr => { all = all.concat(arr); });
+    }
+
+    // Deduplicate by TMDb id
+    const seen = new Set();
+    const unique = all.filter(it => {
+      const id = it && it.id;
+      if (id == null) return false;
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+
+    writeTmdbSearchCache('movie:' + q, unique);
+    return unique;
   } catch (error) {
-    // Return cache if network fails
     const fallback = readTmdbSearchCache('movie:' + q);
     if (fallback) return fallback;
     return handleApiError(error, []);
   }
 };
 
-export const searchTV = async (query) => {
+export const searchTV = async (query, options = {}) => {
   const q = String(query || '').trim().toLowerCase();
   if (!q) return [];
 
-  // Try local cache first
+  const maxPages = Number.isFinite(options.maxPages) ? options.maxPages : 5;
+
   const cached = readTmdbSearchCache('tv:' + q);
   if (cached) return cached;
 
   try {
-    const response = await axios.get('/api/search/tv', {
-      params: { query },
+    const first = await axios.get('/api/search/tv', {
+      params: { query, page: 1 },
       timeout: 8000,
     });
-    const results = response.data.results || [];
-    writeTmdbSearchCache('tv:' + q, results);
-    return results;
+    const data1 = first.data || {};
+    const totalPages = Math.max(1, Math.min(Number(data1.total_pages) || 1, maxPages));
+    let all = Array.isArray(data1.results) ? data1.results : [];
+
+    if (totalPages > 1) {
+      const pages = [];
+      for (let p = 2; p <= totalPages; p++) {
+        pages.push(
+          axios.get('/api/search/tv', {
+            params: { query, page: p },
+            timeout: 8000,
+          }).then(r => (r.data?.results || [])).catch(() => [])
+        );
+      }
+      const rest = await Promise.all(pages);
+      rest.forEach(arr => { all = all.concat(arr); });
+    }
+
+    const seen = new Set();
+    const unique = all.filter(it => {
+      const id = it && it.id;
+      if (id == null) return false;
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+
+    writeTmdbSearchCache('tv:' + q, unique);
+    return unique;
   } catch (error) {
     const fallback = readTmdbSearchCache('tv:' + q);
     if (fallback) return fallback;

@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from "react";
-import { X, Clock, Star, Film, Tv, Calendar, Eye, Check, EyeOff } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { X, Clock, Star, Film, Tv, Calendar, Eye, Check, EyeOff, Pencil } from "lucide-react";
 import { gsap } from "gsap";
 import EpisodeRatingGrid from "./EpisodeRatingGrid";
 import { useIsMobile } from "../hooks/use-mobile";
@@ -11,10 +11,13 @@ export default function DialogBox({
   onRemove,
   onToggleWatchStatus,
   franchiseMovies,
+  onRenameFranchise,
 }) {
   const dialogRef = useRef(null);
   const overlayRef = useRef(null);
   const isMobile = useIsMobile();
+  const [editingFranchise, setEditingFranchise] = useState(false);
+  const [newFranchiseName, setNewFranchiseName] = useState("");
 
   useEffect(() => {
     if (isOpen && dialogRef.current && overlayRef.current) {
@@ -32,6 +35,16 @@ export default function DialogBox({
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (item && item.franchise) {
+      setNewFranchiseName(String(item.franchise));
+      setEditingFranchise(false);
+    } else {
+      setEditingFranchise(false);
+      setNewFranchiseName("");
+    }
+  }, [item]);
+
 
   const handleClose = () => {
     if (dialogRef.current && overlayRef.current) {
@@ -46,6 +59,24 @@ export default function DialogBox({
     } else {
       onClose();
     }
+  };
+
+  const handleSaveRename = () => {
+    const from = String(item?.franchise || "").trim();
+    const to = String(newFranchiseName || "").trim();
+    if (!from) {
+      setEditingFranchise(false);
+      return;
+    }
+    if (!to || to.length < 2 || to === from) {
+      setEditingFranchise(false);
+      setNewFranchiseName(from);
+      return;
+    }
+    if (typeof onRenameFranchise === "function") {
+      onRenameFranchise(from, to);
+    }
+    setEditingFranchise(false);
   };
 
   const formatWatchTime = (runtime) => {
@@ -187,9 +218,51 @@ export default function DialogBox({
                     )}
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-foreground mb-1">
-                      {item.franchise || item.title}
-                    </h2>
+                    <div className="flex items-center gap-2 mb-1">
+                      {editingFranchise && item.franchise ? (
+                        <>
+                          <input
+                            value={newFranchiseName}
+                            onChange={(e) => setNewFranchiseName(e.target.value)}
+                            className="px-2 py-1 rounded-md bg-background border border-border text-foreground text-base sm:text-lg"
+                            placeholder="Franchise name"
+                            autoFocus
+                          />
+                          <button
+                            onClick={handleSaveRename}
+                            className="p-1.5 rounded-md bg-primary/80 text-primary-foreground hover:bg-primary"
+                            title="Save"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingFranchise(false);
+                              setNewFranchiseName(String(item.franchise || ""));
+                            }}
+                            className="p-1.5 rounded-md bg-card border border-border hover:bg-card/80"
+                            title="Cancel"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <h2 className="text-2xl font-bold text-foreground">
+                            {item.franchise || item.title}
+                          </h2>
+                          {item.franchise ? (
+                            <button
+                              onClick={() => setEditingFranchise(true)}
+                              className="p-1.5 rounded-md hover:bg-secondary/50"
+                              title="Rename franchise"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                          ) : null}
+                        </>
+                      )}
+                    </div>
                     <div className="space-y-3">
                       <div className="flex items-center gap-3 text-muted-foreground whitespace-nowrap overflow-x-auto">
                         <span className="flex items-center gap-1 text-xs sm:text-sm">
