@@ -335,18 +335,6 @@ const SearchBar = memo(function SearchBar({
     setSelectedKeys(keys);
   };
   const clearSelection = () => setSelectedKeys([]);
-  const addAllVisible = () => {
-    const items = visibleResults;
-    if (items.length === 0) return;
-    items.forEach((item) => {
-      onAddBookmark(item);
-      incrementSelectionBoost(makeKey(item));
-    });
-    // Remove added items from current results immediately
-    setResults((prev) => prev.filter((r) => !items.some((v) => makeKey(v) === makeKey(r))));
-    // Clear selection of any added items
-    setSelectedKeys((prev) => prev.filter((k) => !items.some((v) => makeKey(v) === k)));
-  };
 
   const onNoResultsLogMiss = useCallback(() => {
     try {
@@ -411,7 +399,6 @@ const SearchBar = memo(function SearchBar({
                       <button onClick={() => { setActiveTab("tv"); setVisibleCount(10); }} className={`px-3 py-1 text-sm rounded-full border ${activeTab==='tv' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>TV</button>
                       <button onClick={() => { setActiveTab("movie"); setVisibleCount(10); }} className={`px-3 py-1 text-sm rounded-full border ${activeTab==='movie' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>Movies</button>
                       <button onClick={selectVisible} className="px-3 py-1 text-sm rounded-full border bg-card/60 hover:bg-card">Select visible</button>
-                      <button onClick={addAllVisible} className="px-3 py-1 text-sm rounded-full border bg-card/60 hover:bg-card">Add all visible</button>
                       <button onClick={clearSelection} className="px-3 py-1 text-sm rounded-full border bg-card/60 hover:bg-card">Clear</button>
                       <button
                         onClick={() => {
