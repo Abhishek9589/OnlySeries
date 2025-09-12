@@ -13,8 +13,10 @@ export default defineConfig(({ mode }) => ({
       deny: [".env", ".env.*", "*.{crt,pem}", "**/.git/**", "server/**"],
     },
   },
+   root: "client",  
   build: {
-    outDir: "dist/spa",
+    outDir: "dist",
+    emptyOutDir: true
   },
   plugins: [react(), expressPlugin()],
   resolve: {
