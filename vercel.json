@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://onlyseriestest.onrender.com/api/:path*"
+      "destination": "https://fusion-backend-7jlc.onrender.com/api/:path*"
     },
     {
       "source": "/(.*)",
