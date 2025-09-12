@@ -129,13 +129,13 @@ const markOmdbKeyAsFailed = (key) => {
 // Proxy for TMDb search movies
 export const searchMovies = async (req, res) => {
   try {
-    const { query } = req.query;
+    const { query, page } = req.query;
     if (!query) {
       return res.status(400).json({ error: "Query parameter is required" });
     }
 
     const response = await tmdbGet(`https://api.themoviedb.org/3/search/movie`, {
-      params: { query: query },
+      params: { query: query, page: page ? Number(page) : undefined },
     });
 
     res.json(response.data);
@@ -148,13 +148,13 @@ export const searchMovies = async (req, res) => {
 // Proxy for TMDb search TV shows
 export const searchTV = async (req, res) => {
   try {
-    const { query } = req.query;
+    const { query, page } = req.query;
     if (!query) {
       return res.status(400).json({ error: "Query parameter is required" });
     }
 
     const response = await tmdbGet(`https://api.themoviedb.org/3/search/tv`, {
-      params: { query: query },
+      params: { query: query, page: page ? Number(page) : undefined },
     });
 
     res.json(response.data);
