@@ -1,13 +1,10 @@
 services:
   - type: web
-    name: fusion-backend
+    name: fusion-starter
     runtime: node
-    plan: free
-    region: oregon
-    envVars:
-      - key: NODE_VERSION
-        value: 20
     buildCommand: npm install && npm run build
-    startCommand: npm run start
+    startCommand: npm start
     healthCheckPath: /health
-    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
