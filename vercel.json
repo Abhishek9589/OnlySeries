@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build:client",
+  "outputDirectory": "dist/spa",
+  "functions": {
+    "api/**": {
+      "runtime": "nodejs20.x"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/[[...all]].js" },
+    { "source": "/((?!api/|.*\\..*).*)", "destination": "/index.html" }
+  ]
+}
