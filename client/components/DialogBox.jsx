@@ -3,6 +3,86 @@ import { X, Clock, Star, Film, Tv, Calendar, Eye, Check, EyeOff, Pencil } from "
 import { gsap } from "gsap";
 import EpisodeRatingGrid from "./EpisodeRatingGrid";
 import { useIsMobile } from "../hooks/use-mobile";
+import { getMovieDetails, getIMDbRating } from "../lib/api";
+
+function FranchiseMovieCard({ movie, onRemove, onUpdateBookmark, formatWatchTime }) {
+  const [localRating, setLocalRating] = useState(movie.imdbRating || "N/A");
+  const [localRuntime, setLocalRuntime] = useState(movie.runtime || 120);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const enrich = async () => {
+      try {
+        const details = await getMovieDetails(movie.id).catch(() => null);
+        const runtime = Number.isFinite(details?.runtime) ? details.runtime : (Number.isFinite(movie.runtime) ? movie.runtime : 120);
+        let imdbRating = movie.imdbRating;
+        try {
+          const imdbId = details?.external_ids?.imdb_id;
+          const year = details?.release_date ? String(new Date(details.release_date).getFullYear()) : movie.year;
+          const omdbRating = await getIMDbRating({ imdbId, title: details?.title || movie.title, year }).catch(() => 'N/A');
+          if (omdbRating && omdbRating !== 'N/A') {
+            imdbRating = omdbRating;
+          } else {
+            const tmdbRating = typeof details?.vote_average === 'number' ? String(details.vote_average.toFixed(1)) : undefined;
+            imdbRating = tmdbRating || (movie.imdbRating || 'N/A');
+          }
+        } catch {
+          const tmdbRating = typeof details?.vote_average === 'number' ? String(details.vote_average.toFixed(1)) : undefined;
+          imdbRating = tmdbRating || (movie.imdbRating || 'N/A');
+        }
+
+        if (!cancelled) {
+          setLocalRuntime(runtime);
+          setLocalRating(imdbRating);
+          if (typeof onUpdateBookmark === 'function') {
+            onUpdateBookmark(movie.id, 'movie', { runtime, imdbRating });
+          }
+        }
+      } catch {
+      }
+    };
+
+    enrich();
+    return () => { cancelled = true; };
+  }, [movie.id]);
+
+  return (
+    <div className="group relative">
+      <div className="aspect-[2/3] rounded-xl overflow-hidden bg-card border border-border/30 shadow-lg transition-all duration-300 group-hover:scale-105">
+        <img src={movie.poster} alt={movie.title} className="w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+          {onRemove && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(movie.id, movie.type);
+              }}
+              className="absolute top-2 right-2 bg-destructive/90 backdrop-blur-sm text-white rounded-full p-1.5 hover:bg-destructive transition-colors shadow-lg"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+          <div className="absolute bottom-0 left-0 right-0 p-3 space-y-2">
+            <div className="text-white text-sm font-medium">{movie.title}</div>
+            <div className="flex items-center gap-2 text-xs text-white/90">
+              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+              <span>{localRating}</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-white/90">
+              <Clock className="w-3 h-3" />
+              <span>{formatWatchTime(localRuntime || 120)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="mt-2 text-center">
+        <div className="font-medium text-sm text-foreground truncate">{movie.title}</div>
+        <div className="text-xs text-muted-foreground">{movie.year}</div>
+      </div>
+    </div>
+  );
+}
 
 export default function DialogBox({
   item,
@@ -12,6 +92,7 @@ export default function DialogBox({
   onToggleWatchStatus,
   franchiseMovies,
   onRenameFranchise,
+  onUpdateBookmark,
 }) {
   const dialogRef = useRef(null);
   const overlayRef = useRef(null);
@@ -405,56 +486,17 @@ export default function DialogBox({
               {item.franchise && franchiseMovies && (
                 <div className="space-y-6">
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {franchiseMovies.sort((a, b) => parseInt(a.year) - parseInt(b.year)).map((movie) => (
-                      <div key={movie.id} className="group relative">
-                        <div className="aspect-[2/3] rounded-xl overflow-hidden bg-card border border-border/30 shadow-lg transition-all duration-300 group-hover:scale-105">
-                          <img
-                            src={movie.poster}
-                            alt={movie.title}
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                            {/* Remove button at top right */}
-                            {onRemove && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onRemove(movie.id, movie.type);
-                                }}
-                                className="absolute top-2 right-2 bg-destructive/90 backdrop-blur-sm text-white rounded-full p-1.5 hover:bg-destructive transition-colors shadow-lg"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            )}
-
-                            {/* Movie info at bottom */}
-                            <div className="absolute bottom-0 left-0 right-0 p-3 space-y-2">
-                              <div className="text-white text-sm font-medium">
-                                {movie.title}
-                              </div>
-
-                              <div className="flex items-center gap-2 text-xs text-white/90">
-                                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                                <span>{movie.imdbRating}</span>
-                              </div>
-
-                              <div className="flex items-center gap-2 text-xs text-white/90">
-                                <Clock className="w-3 h-3" />
-                                <span>{formatWatchTime(movie.runtime || 120)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="mt-2 text-center">
-                          <div className="font-medium text-sm text-foreground truncate">
-                            {movie.title}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {movie.year}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                    {franchiseMovies
+                      .sort((a, b) => parseInt(a.year) - parseInt(b.year))
+                      .map((movie) => (
+                        <FranchiseMovieCard
+                          key={movie.id}
+                          movie={movie}
+                          onRemove={onRemove}
+                          onUpdateBookmark={onUpdateBookmark}
+                          formatWatchTime={formatWatchTime}
+                        />
+                      ))}
                   </div>
                 </div>
               )}

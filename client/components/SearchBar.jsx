@@ -10,6 +10,9 @@ import {
   getIMDbRating,
 } from "../lib/api";
 
+// Cache verified ratings across searches to avoid repeated OMDb calls
+const imdbVerifyCache = new Map();
+
 const LS_SELECTION_BOOSTS = "selectionBoosts";
 const LS_SEARCH_CACHE = "searchCacheV2";
 const LS_MISSES = "searchMisses";
@@ -29,6 +32,7 @@ const SearchBar = memo(function SearchBar({
   const [visibleCount, setVisibleCount] = useState(10);
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState([]);
+  const [verifiedRatings, setVerifiedRatings] = useState({});
   const isOffline = useOffline();
 
   // Refs to avoid stale closures in async handlers
@@ -336,6 +340,54 @@ const SearchBar = memo(function SearchBar({
   };
   const clearSelection = () => setSelectedKeys([]);
 
+  // Verify IMDb ratings for visible results using OMDb (same logic as cards)
+  useEffect(() => {
+    if (!showResults || isLoading || offlineRef.current) return;
+    const items = visibleResults;
+    if (!items || items.length === 0) return;
+
+    let cancelled = false;
+    const run = async () => {
+      const tasks = items.map(async (it) => {
+        const key = makeKey(it);
+        if (imdbVerifyCache.has(key)) {
+          const cached = imdbVerifyCache.get(key);
+          if (!cancelled) setVerifiedRatings((p) => (p[key] === cached ? p : { ...p, [key]: cached }));
+          return;
+        }
+        try {
+          let details = null;
+          if (it.type === 'movie') {
+            details = await getMovieDetails(it.id, { timeout: 5000 }).catch(() => null);
+          } else {
+            details = await getTVDetails(it.id, { minimal: true, timeout: 5000 }).catch(() => null);
+          }
+          const imdbId = details?.external_ids?.imdb_id || null;
+          const title = it.type === 'movie' ? (details?.title || it.title) : (details?.name || it.title);
+          const year = it.type === 'movie'
+            ? (details?.release_date ? String(new Date(details.release_date).getFullYear()) : it.year)
+            : (details?.first_air_date ? String(new Date(details.first_air_date).getFullYear()) : it.year);
+
+          let rating = await getIMDbRating({ imdbId, title, year }).catch(() => 'N/A');
+          if (!rating || rating === 'N/A') {
+            const tmdbRating = typeof details?.vote_average === 'number' ? String(details.vote_average.toFixed(1)) : undefined;
+            rating = tmdbRating || it.imdbRating || 'N/A';
+          }
+
+          if (!cancelled && rating && typeof rating === 'string') {
+            imdbVerifyCache.set(key, rating);
+            setVerifiedRatings((prev) => ({ ...prev, [key]: rating }));
+          }
+        } catch {}
+      });
+      await Promise.allSettled(tasks);
+    };
+
+    run();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showResults, isLoading, activeTab, visibleCount, results]);
+
   const onNoResultsLogMiss = useCallback(() => {
     try {
       const raw = localStorage.getItem(LS_MISSES);
@@ -456,8 +508,8 @@ const SearchBar = memo(function SearchBar({
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         {item.year && <span className="px-2 py-0.5 rounded-full border border-border/50 bg-background/40">{item.year}</span>}
                         <span className="capitalize">{item.type}</span>
-                        {item.imdbRating !== "N/A" && (
-                          <span className="text-primary">★ {item.imdbRating}</span>
+                        {(verifiedRatings[makeKey(item)] || item.imdbRating) !== "N/A" && (
+                          <span className="text-primary">★ {verifiedRatings[makeKey(item)] || item.imdbRating}</span>
                         )}
                       </div>
                     </div>

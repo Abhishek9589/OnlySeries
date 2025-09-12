@@ -857,6 +857,7 @@ export default function Index() {
                 : undefined
             }
             onRenameFranchise={handleRenameFranchise}
+            onUpdateBookmark={updateBookmark}
           />
         </div>
       </div>
