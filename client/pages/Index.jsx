@@ -465,6 +465,19 @@ export default function Index() {
               addedAt: it.addedAt ?? (base + i),
             }));
             setBookmarks(normalized);
+            // Safety: close any open overlays/modals and reset selection to avoid stuck UI
+            setDialogOpen(false);
+            setShowFranchiseDialog(false);
+            setSelectionMode(false);
+            setSelectedKeys([]);
+            // Restore body scroll if any lock was left behind by an interrupted modal
+            try {
+              const prev = document.body.dataset._prevOverflow || '';
+              document.body.style.overflow = prev;
+              delete document.body.dataset._prevOverflow;
+            } catch {}
+            // Notify child components (e.g., SearchBar) to close popovers
+            window.dispatchEvent(new CustomEvent('close-search-results'));
           }
         } catch (error) {
           console.error("Error parsing uploaded file:", error);

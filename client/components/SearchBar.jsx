@@ -43,6 +43,13 @@ const SearchBar = memo(function SearchBar({
   useEffect(() => { bookmarksRef.current = bookmarks; }, [bookmarks]);
   useEffect(() => { offlineRef.current = isOffline; }, [isOffline]);
 
+  // Global signal from parent to close dropdowns/cleanup (e.g., after uploads)
+  useEffect(() => {
+    const handler = () => { setShowResults(false); setBulkMode(false); setSelectedKeys([]); };
+    window.addEventListener('close-search-results', handler);
+    return () => window.removeEventListener('close-search-results', handler);
+  }, []);
+
   const getSelectionBoosts = () => {
     try {
       const raw = localStorage.getItem(LS_SELECTION_BOOSTS);
@@ -461,11 +468,12 @@ const SearchBar = memo(function SearchBar({
                               incrementSelectionBoost(makeKey(item));
                             });
                             setResults((prev) => prev.filter((r) => !items.some((v) => makeKey(v) === makeKey(r))));
-
-                            const movies = items.filter((it) => it.type === 'movie');
-                            if (movies.length > 0 && typeof onBulkFranchise === 'function') {
-                              onBulkFranchise(movies);
-                            }
+                          }
+                          // Close suggestions dropdown before opening franchise dialog to avoid overlay conflicts
+                          setShowResults(false);
+                          const movies = items.filter((it) => it.type === 'movie');
+                          if (movies.length > 0 && typeof onBulkFranchise === 'function') {
+                            onBulkFranchise(movies);
                           }
                           setBulkMode(false);
                           clearSelection();
