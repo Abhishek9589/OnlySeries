@@ -14,6 +14,7 @@ import {
 } from "../components/ui/dropdown-menu";
 
 import { getMovieDetails, getTVDetails, getIMDbRating } from "../lib/api";
+import { loadBookmarks, storeBookmarks } from "../lib/persist";
 import ConfirmDialog from "../components/ConfirmDialog";
 
 export default function Index() {
@@ -79,38 +80,36 @@ export default function Index() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [bookmarks]);
 
-  // Load bookmarks from localStorage on mount
+  // Load bookmarks on mount (IndexedDB fallback supported)
   useEffect(() => {
-    const savedBookmarks = localStorage.getItem("onlyseries-bookmarks");
-    const migratedFlag = localStorage.getItem("onlyseries-franchise-migrated-v1");
-    if (savedBookmarks) {
-      const parsed = JSON.parse(savedBookmarks);
-      if (!migratedFlag) {
-        const cleared = Array.isArray(parsed)
-          ? parsed.map((it, i) => ({
+    (async () => {
+      try {
+        const saved = await loadBookmarks();
+        const migratedFlag = localStorage.getItem("onlyseries-franchise-migrated-v1");
+        if (saved && Array.isArray(saved)) {
+          const parsed = saved;
+          if (!migratedFlag) {
+            const cleared = parsed.map((it, i) => ({
               ...it,
               franchise: undefined,
               addedAt: it.addedAt ?? (Date.now() - (parsed.length - i)),
-            }))
-          : [];
-        setBookmarks(cleared);
-        localStorage.setItem("onlyseries-franchise-migrated-v1", "true");
-        if (cleared.length > 0) {
-          setBackgroundImage(cleared[cleared.length - 1].poster);
-        }
-      } else {
-        const withAdded = Array.isArray(parsed)
-          ? parsed.map((it, i) => ({
+            }));
+            setBookmarks(cleared);
+            localStorage.setItem("onlyseries-franchise-migrated-v1", "true");
+            if (cleared.length > 0) setBackgroundImage(cleared[cleared.length - 1].poster);
+          } else {
+            const withAdded = parsed.map((it, i) => ({
               ...it,
               addedAt: it.addedAt ?? (Date.now() - (parsed.length - i)),
-            }))
-          : [];
-        setBookmarks(withAdded);
-        if (withAdded.length > 0) {
-          setBackgroundImage(withAdded[withAdded.length - 1].poster);
+            }));
+            setBookmarks(withAdded);
+            if (withAdded.length > 0) setBackgroundImage(withAdded[withAdded.length - 1].poster);
+          }
         }
+      } catch (e) {
+        console.warn("Failed to load bookmarks", e);
       }
-    }
+    })();
   }, []);
 
   // Normalize missing addedAt once to keep time-based sorting stable
@@ -147,10 +146,15 @@ export default function Index() {
     };
   }, [dialogOpen, showFranchiseDialog, showResetConfirm]);
 
-  // Save bookmarks to localStorage whenever bookmarks change
+  // Persist bookmarks safely (localStorage or IndexedDB) whenever they change
   useEffect(() => {
-    localStorage.setItem("onlyseries-bookmarks", JSON.stringify(bookmarks));
-    // Update background image when bookmarks change
+    (async () => {
+      try {
+        await storeBookmarks(bookmarks);
+      } catch (e) {
+        console.warn("Failed to store bookmarks", e);
+      }
+    })();
     if (bookmarks.length > 0) {
       setBackgroundImage(bookmarks[bookmarks.length - 1].poster);
     } else {
