@@ -460,10 +460,39 @@ export default function Index() {
           const uploaded = JSON.parse(e.target?.result);
           if (Array.isArray(uploaded)) {
             const base = Date.now() - uploaded.length;
-            const normalized = uploaded.map((it, i) => ({
-              ...it,
-              addedAt: it.addedAt ?? (base + i),
-            }));
+            const valid = (it) => it && typeof it === 'object' && (it.type === 'movie' || it.type === 'tv') && Number.isFinite(Number(it.id)) && typeof (it.title || it.name) === 'string';
+            const normalized = uploaded
+              .filter(valid)
+              .map((raw, i) => {
+                const it = { ...raw };
+                const type = it.type === 'tv' ? 'tv' : 'movie';
+                const title = it.title || it.name || '';
+                const poster = it.poster || it.poster_path || null;
+                const common = {
+                  id: Number(it.id),
+                  type,
+                  title,
+                  year: String(it.year || it.release_year || it.first_air_year || it.release_date ? new Date(it.release_date || it.first_air_date || `${it.year || ''}-01-01`).getFullYear() : '') || '',
+                  poster,
+                  imdbRating: typeof it.imdbRating === 'string' ? it.imdbRating : (typeof it.vote_average === 'number' ? String(it.vote_average.toFixed(1)) : 'N/A'),
+                  watchStatus: it.watchStatus === 'watched' ? 'watched' : 'unwatched',
+                  franchise: typeof it.franchise === 'string' && it.franchise.trim() ? it.franchise.trim() : undefined,
+                  addedAt: typeof it.addedAt === 'number' && Number.isFinite(it.addedAt) ? it.addedAt : (base + i),
+                };
+                if (type === 'movie') {
+                  return {
+                    ...common,
+                    runtime: Number.isFinite(Number(it.runtime)) ? Number(it.runtime) : 120,
+                  };
+                }
+                return {
+                  ...common,
+                  seasons: Number.isFinite(Number(it.seasons)) ? Number(it.seasons) : (Number.isFinite(Number(it.number_of_seasons)) ? Number(it.number_of_seasons) : 1),
+                  episodes: Number.isFinite(Number(it.episodes)) ? Number(it.episodes) : (Number.isFinite(Number(it.number_of_episodes)) ? Number(it.number_of_episodes) : 10),
+                  averageEpisodeRuntime: Number.isFinite(Number(it.averageEpisodeRuntime)) ? Number(it.averageEpisodeRuntime) : (Number.isFinite(Number(it.episode_run_time)) ? Number(it.episode_run_time) : undefined),
+                  episode_run_time: Array.isArray(it.episode_run_time) ? it.episode_run_time : [],
+                };
+              });
             setBookmarks(normalized);
             // Safety: close any open overlays/modals and reset selection to avoid stuck UI
             setDialogOpen(false);
@@ -476,8 +505,9 @@ export default function Index() {
               document.body.style.overflow = prev;
               delete document.body.dataset._prevOverflow;
             } catch {}
-            // Notify child components (e.g., SearchBar) to close popovers
-            window.dispatchEvent(new CustomEvent('close-search-results'));
+            // Notify child components (e.g., SearchBar) to close popovers and run global cleanup
+            try { window.dispatchEvent(new CustomEvent('close-search-results')); } catch {}
+            try { window.dispatchEvent(new CustomEvent('app:reset-ui')); } catch {}
           }
         } catch (error) {
           console.error("Error parsing uploaded file:", error);
