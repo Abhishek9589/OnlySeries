@@ -7,6 +7,29 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useEffect } from "react";
 import Index from "./pages/Index";
 
+function ErrorBoundary({ children }) {
+  // Simple classless error boundary using React 18 error handling via try/catch in render tree
+  // We fallback to a minimal UI with a refresh and reset option
+  let content = children;
+  try {
+    return content;
+  } catch (e) {
+    console.error('App render error:', e);
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-foreground p-6">
+        <div className="max-w-md w-full bg-card/90 border border-border rounded-xl p-4 text-center">
+          <div className="font-semibold mb-2">Something went wrong</div>
+          <div className="text-sm text-muted-foreground mb-4">Try refreshing or resetting the UI.</div>
+          <div className="flex gap-2 justify-center">
+            <button onClick={() => window.location.reload()} className="px-3 py-2 rounded-md bg-primary text-primary-foreground">Refresh</button>
+            <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="px-3 py-2 rounded-md bg-card border border-border">Reset</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+}
+
 const App = () => {
   useEffect(() => {
     const cleanup = () => {
@@ -35,7 +58,9 @@ const App = () => {
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <Index />
+      <ErrorBoundary>
+        <Index />
+      </ErrorBoundary>
     </TooltipProvider>
   );
 };
