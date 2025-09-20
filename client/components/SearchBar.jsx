@@ -28,7 +28,7 @@ const SearchBar = memo(function SearchBar({
   const [isLoading, setIsLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const [activeTab, setActiveTab] = useState("tv"); // tv | movie
+  const [activeTab, setActiveTab] = useState("all"); // tv | movie | all
   const [visibleCount, setVisibleCount] = useState(10);
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState([]);
@@ -42,6 +42,13 @@ const SearchBar = memo(function SearchBar({
 
   useEffect(() => { bookmarksRef.current = bookmarks; }, [bookmarks]);
   useEffect(() => { offlineRef.current = isOffline; }, [isOffline]);
+
+  // Global signal from parent to close dropdowns/cleanup (e.g., after uploads)
+  useEffect(() => {
+    const handler = () => { setShowResults(false); setBulkMode(false); setSelectedKeys([]); };
+    window.addEventListener('close-search-results', handler);
+    return () => window.removeEventListener('close-search-results', handler);
+  }, []);
 
   const getSelectionBoosts = () => {
     try {
@@ -155,16 +162,18 @@ const SearchBar = memo(function SearchBar({
 
     const cached = getCachedSearch(normalizedQuery);
     if (cached && requestId === requestSeqRef.current) {
-      const filteredCached = cached.filter((item) => {
+      const prepared = cached.map((item) => {
         const isAlreadyAdded = bookmarksRef.current.some(
           (bookmark) => Number(bookmark.id) === Number(item.id) && bookmark.type === item.type
         );
-        return !isAlreadyAdded;
+        return { ...item, alreadyAdded: !!isAlreadyAdded };
       });
-      setResults(filteredCached);
+      // Use cached results immediately but still perform a live refresh to avoid stale/missing data
+      setResults(prepared);
       setShowResults(true);
-      setIsLoading(false);
-      return;
+      // mark loading so UI will update when live fetch completes
+      setIsLoading(true);
+      // do NOT return — continue to fetch fresh results
     }
 
     setIsLoading(true);
@@ -239,31 +248,78 @@ const SearchBar = memo(function SearchBar({
       const allResultsRaw = [...detailedResults, ...basicResults];
 
       const successfulResults = allResultsRaw
-        .filter((item) => {
+        .map((item) => {
           const isAlreadyAdded = bookmarksRef.current.some((bookmark) =>
             Number(bookmark.id) === Number(item.id) && bookmark.type === item.type
           );
-          return !isAlreadyAdded;
-        })
-        .map((item) => {
           const key = `${item.type}:${item.id}`;
           return {
             ...item,
+            alreadyAdded: !!isAlreadyAdded,
             similarity: calculateSimilarity(item.title, normalizedQuery, key),
             ratingScore: item.imdbRating !== "N/A" ? parseFloat(item.imdbRating) || 0 : 0,
           };
         })
-        .filter((item) => item.similarity > 0)
+        .filter((item) => {
+          try {
+            return item.similarity > 0 || norm(item.title || '') === norm(normalizedQuery);
+          } catch (e) {
+            return item.similarity > 0;
+          }
+        })
+        // Prefer exact title matches and favor TV when titles tie
         .sort((a, b) => {
+          try {
+            const nq = norm(normalizedQuery);
+            const aTitle = norm(a.title || '');
+            const bTitle = norm(b.title || '');
+            const aExact = aTitle === nq;
+            const bExact = bTitle === nq;
+            if (aExact && !bExact) return -1;
+            if (!aExact && bExact) return 1;
+            if (aExact && bExact && a.type !== b.type) {
+              // when both exactly match title, prefer TV over movie
+              if (a.type === 'tv') return -1;
+              if (b.type === 'tv') return 1;
+            }
+          } catch (e) {}
+
           if (a.similarity !== b.similarity) return b.similarity - a.similarity;
           if (a.ratingScore !== b.ratingScore) return b.ratingScore - a.ratingScore;
+          // keep previous type ordering as a final tiebreaker (movies first otherwise)
           if (a.type !== b.type) return a.type === "movie" ? -1 : 1;
           return a.title.localeCompare(b.title);
         });
 
       if (requestId === requestSeqRef.current) {
+        // Debugging: log results so we can trace why an expected TV show may be hidden
+        try {
+          console.debug('[SearchBar] raw results count', allResultsRaw.length);
+          const tvList = allResultsRaw.filter((r) => r.type === 'tv').map((r) => `${r.title} (${r.id})`);
+          const movieList = allResultsRaw.filter((r) => r.type === 'movie').map((r) => `${r.title} (${r.id})`);
+          console.debug('[SearchBar] raw tv:', tvList.slice(0,10));
+          console.debug('[SearchBar] raw movies:', movieList.slice(0,10));
+        } catch (e) {}
+
         setResults(successfulResults);
         setCachedSearch(normalizedQuery, successfulResults);
+
+        try {
+          const tvCount = successfulResults.filter((r) => r.type === "tv").length;
+          const movieCount = successfulResults.filter((r) => r.type === "movie").length;
+          console.debug('[SearchBar] successfulResults counts', { tvCount, movieCount, q: normalizedQuery });
+          // Auto-switch tab if one type is empty
+          if (tvCount === 0 && movieCount > 0) {
+            setActiveTab("movie");
+          } else if (movieCount === 0 && tvCount > 0) {
+            setActiveTab("tv");
+          } else if (tvCount > 0 && movieCount > 0) {
+            // both types present - show combined results by default
+            setActiveTab("all");
+          }
+        } catch (e) {
+          // ignore any errors adjusting tab
+        }
       }
     } catch (error) {
       console.error("Search error:", error);
@@ -323,7 +379,7 @@ const SearchBar = memo(function SearchBar({
     setShowResults(false);
   };
 
-  const filteredByTab = results.filter((r) =>
+  const filteredByTab = activeTab === 'all' ? results : results.filter((r) =>
     activeTab === "tv" ? r.type === "tv" : r.type === "movie"
   );
   const visibleResults = filteredByTab.slice(0, visibleCount);
@@ -461,11 +517,12 @@ const SearchBar = memo(function SearchBar({
                               incrementSelectionBoost(makeKey(item));
                             });
                             setResults((prev) => prev.filter((r) => !items.some((v) => makeKey(v) === makeKey(r))));
-
-                            const movies = items.filter((it) => it.type === 'movie');
-                            if (movies.length > 0 && typeof onBulkFranchise === 'function') {
-                              onBulkFranchise(movies);
-                            }
+                          }
+                          // Close suggestions dropdown before opening franchise dialog to avoid overlay conflicts
+                          setShowResults(false);
+                          const movies = items.filter((it) => it.type === 'movie');
+                          if (movies.length > 0 && typeof onBulkFranchise === 'function') {
+                            onBulkFranchise(movies);
                           }
                           setBulkMode(false);
                           clearSelection();
@@ -486,7 +543,12 @@ const SearchBar = memo(function SearchBar({
                       if (bulkMode) {
                         toggleSelect(item);
                       } else {
-                        handleAddBookmark(item);
+                        if (item.alreadyAdded) {
+                          // Already added - just close results to indicate it's present
+                          setShowResults(false);
+                        } else {
+                          handleAddBookmark(item);
+                        }
                       }
                     }}
                     className={`flex items-center p-4 cursor-pointer transition-colors group ${bulkMode && isSelected(item) ? 'bg-primary/15' : 'hover:bg-accent/20'}`}
@@ -523,6 +585,12 @@ const SearchBar = memo(function SearchBar({
                           onClick={(e) => e.stopPropagation()}
                           aria-label={`Select ${item.title}`}
                         />
+                      </div>
+                    )}
+
+                    {!bulkMode && item.alreadyAdded && (
+                      <div className="ml-3 text-xs text-muted-foreground">
+                        <span className="px-2 py-1 rounded-full bg-card/50 border border-border">Added</span>
                       </div>
                     )}
                   </div>

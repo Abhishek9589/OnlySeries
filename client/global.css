@@ -122,40 +122,41 @@
     @apply dark;
   }
 
-  /* Custom scrollbar styles to match webapp theme */
+  /* Custom scrollbar styles: hide scrollbar visually but keep scrolling functional */
   .custom-scrollbar::-webkit-scrollbar,
   *::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 0;
+    height: 0;
   }
 
   .custom-scrollbar::-webkit-scrollbar-track,
   *::-webkit-scrollbar-track {
-    background: hsl(var(--card));
-    border-radius: 4px;
+    background: transparent;
+    border-radius: 0;
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb,
   *::-webkit-scrollbar-thumb {
-    background: hsl(var(--primary));
-    border-radius: 4px;
-    transition: background-color 0.2s ease;
+    background: transparent;
+    border-radius: 0;
+    transition: none;
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb:hover,
   *::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--primary)/0.8);
+    background: transparent;
   }
 
   .custom-scrollbar::-webkit-scrollbar-corner,
   *::-webkit-scrollbar-corner {
-    background: hsl(var(--card));
+    background: transparent;
   }
 
-  /* Firefox scrollbar styles */
+  /* Firefox scrollbar styles: hide */
   .custom-scrollbar,
   * {
-    scrollbar-width: thin;
-    scrollbar-color: hsl(var(--primary)) hsl(var(--card));
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    scrollbar-color: transparent transparent;
   }
 }

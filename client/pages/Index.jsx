@@ -14,6 +14,7 @@ import {
 } from "../components/ui/dropdown-menu";
 
 import { getMovieDetails, getTVDetails, getIMDbRating } from "../lib/api";
+import { loadBookmarks, storeBookmarks } from "../lib/persist";
 import ConfirmDialog from "../components/ConfirmDialog";
 
 export default function Index() {
@@ -79,38 +80,36 @@ export default function Index() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [bookmarks]);
 
-  // Load bookmarks from localStorage on mount
+  // Load bookmarks on mount (IndexedDB fallback supported)
   useEffect(() => {
-    const savedBookmarks = localStorage.getItem("onlyseries-bookmarks");
-    const migratedFlag = localStorage.getItem("onlyseries-franchise-migrated-v1");
-    if (savedBookmarks) {
-      const parsed = JSON.parse(savedBookmarks);
-      if (!migratedFlag) {
-        const cleared = Array.isArray(parsed)
-          ? parsed.map((it, i) => ({
+    (async () => {
+      try {
+        const saved = await loadBookmarks();
+        const migratedFlag = localStorage.getItem("onlyseries-franchise-migrated-v1");
+        if (saved && Array.isArray(saved)) {
+          const parsed = saved;
+          if (!migratedFlag) {
+            const cleared = parsed.map((it, i) => ({
               ...it,
               franchise: undefined,
               addedAt: it.addedAt ?? (Date.now() - (parsed.length - i)),
-            }))
-          : [];
-        setBookmarks(cleared);
-        localStorage.setItem("onlyseries-franchise-migrated-v1", "true");
-        if (cleared.length > 0) {
-          setBackgroundImage(cleared[cleared.length - 1].poster);
-        }
-      } else {
-        const withAdded = Array.isArray(parsed)
-          ? parsed.map((it, i) => ({
+            }));
+            setBookmarks(cleared);
+            localStorage.setItem("onlyseries-franchise-migrated-v1", "true");
+            if (cleared.length > 0) setBackgroundImage(cleared[cleared.length - 1].poster);
+          } else {
+            const withAdded = parsed.map((it, i) => ({
               ...it,
               addedAt: it.addedAt ?? (Date.now() - (parsed.length - i)),
-            }))
-          : [];
-        setBookmarks(withAdded);
-        if (withAdded.length > 0) {
-          setBackgroundImage(withAdded[withAdded.length - 1].poster);
+            }));
+            setBookmarks(withAdded);
+            if (withAdded.length > 0) setBackgroundImage(withAdded[withAdded.length - 1].poster);
+          }
         }
+      } catch (e) {
+        console.warn("Failed to load bookmarks", e);
       }
-    }
+    })();
   }, []);
 
   // Normalize missing addedAt once to keep time-based sorting stable
@@ -147,10 +146,15 @@ export default function Index() {
     };
   }, [dialogOpen, showFranchiseDialog, showResetConfirm]);
 
-  // Save bookmarks to localStorage whenever bookmarks change
+  // Persist bookmarks safely (localStorage or IndexedDB) whenever they change
   useEffect(() => {
-    localStorage.setItem("onlyseries-bookmarks", JSON.stringify(bookmarks));
-    // Update background image when bookmarks change
+    (async () => {
+      try {
+        await storeBookmarks(bookmarks);
+      } catch (e) {
+        console.warn("Failed to store bookmarks", e);
+      }
+    })();
     if (bookmarks.length > 0) {
       setBackgroundImage(bookmarks[bookmarks.length - 1].poster);
     } else {
@@ -460,11 +464,54 @@ export default function Index() {
           const uploaded = JSON.parse(e.target?.result);
           if (Array.isArray(uploaded)) {
             const base = Date.now() - uploaded.length;
-            const normalized = uploaded.map((it, i) => ({
-              ...it,
-              addedAt: it.addedAt ?? (base + i),
-            }));
+            const valid = (it) => it && typeof it === 'object' && (it.type === 'movie' || it.type === 'tv') && Number.isFinite(Number(it.id)) && typeof (it.title || it.name) === 'string';
+            const normalized = uploaded
+              .filter(valid)
+              .map((raw, i) => {
+                const it = { ...raw };
+                const type = it.type === 'tv' ? 'tv' : 'movie';
+                const title = it.title || it.name || '';
+                const poster = it.poster || it.poster_path || null;
+                const common = {
+                  id: Number(it.id),
+                  type,
+                  title,
+                  year: String(it.year || it.release_year || it.first_air_year || it.release_date ? new Date(it.release_date || it.first_air_date || `${it.year || ''}-01-01`).getFullYear() : '') || '',
+                  poster,
+                  imdbRating: typeof it.imdbRating === 'string' ? it.imdbRating : (typeof it.vote_average === 'number' ? String(it.vote_average.toFixed(1)) : 'N/A'),
+                  watchStatus: it.watchStatus === 'watched' ? 'watched' : 'unwatched',
+                  franchise: typeof it.franchise === 'string' && it.franchise.trim() ? it.franchise.trim() : undefined,
+                  addedAt: typeof it.addedAt === 'number' && Number.isFinite(it.addedAt) ? it.addedAt : (base + i),
+                };
+                if (type === 'movie') {
+                  return {
+                    ...common,
+                    runtime: Number.isFinite(Number(it.runtime)) ? Number(it.runtime) : 120,
+                  };
+                }
+                return {
+                  ...common,
+                  seasons: Number.isFinite(Number(it.seasons)) ? Number(it.seasons) : (Number.isFinite(Number(it.number_of_seasons)) ? Number(it.number_of_seasons) : 1),
+                  episodes: Number.isFinite(Number(it.episodes)) ? Number(it.episodes) : (Number.isFinite(Number(it.number_of_episodes)) ? Number(it.number_of_episodes) : 10),
+                  averageEpisodeRuntime: Number.isFinite(Number(it.averageEpisodeRuntime)) ? Number(it.averageEpisodeRuntime) : (Number.isFinite(Number(it.episode_run_time)) ? Number(it.episode_run_time) : undefined),
+                  episode_run_time: Array.isArray(it.episode_run_time) ? it.episode_run_time : [],
+                };
+              });
             setBookmarks(normalized);
+            // Safety: close any open overlays/modals and reset selection to avoid stuck UI
+            setDialogOpen(false);
+            setShowFranchiseDialog(false);
+            setSelectionMode(false);
+            setSelectedKeys([]);
+            // Restore body scroll if any lock was left behind by an interrupted modal
+            try {
+              const prev = document.body.dataset._prevOverflow || '';
+              document.body.style.overflow = prev;
+              delete document.body.dataset._prevOverflow;
+            } catch {}
+            // Notify child components (e.g., SearchBar) to close popovers and run global cleanup
+            try { window.dispatchEvent(new CustomEvent('close-search-results')); } catch {}
+            try { window.dispatchEvent(new CustomEvent('app:reset-ui')); } catch {}
           }
         } catch (error) {
           console.error("Error parsing uploaded file:", error);

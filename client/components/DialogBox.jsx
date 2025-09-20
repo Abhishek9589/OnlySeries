@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { X, Clock, Star, Film, Tv, Calendar, Eye, Check, EyeOff, Pencil } from "lucide-react";
 import { gsap } from "gsap";
-import EpisodeRatingGrid from "./EpisodeRatingGrid";
 import { useIsMobile } from "../hooks/use-mobile";
 import { getMovieDetails, getIMDbRating } from "../lib/api";
 
@@ -168,18 +167,6 @@ export default function DialogBox({
 
   if (!isOpen || !item) return null;
 
-  // For TV shows (non-franchise), render the fullscreen EpisodeRatingGrid overlay directly
-  if (item.type === "tv" && !item.franchise) {
-    return (
-      <EpisodeRatingGrid
-        tvId={item.id}
-        seasons={item.seasons || 1}
-        fullScreen={true}
-        title={item.franchise || item.title}
-        onCloseFullScreen={() => onClose && onClose()}
-      />
-    );
-  }
 
   const isCompactMobileMovie = isMobile && item.type === "movie" && !item.franchise;
   const isCompactDesktopMovie = !isMobile && item.type === "movie" && !item.franchise;
@@ -501,26 +488,6 @@ export default function DialogBox({
                 </div>
               )}
 
-              {/* Series Dialog */}
-              {item.type === "tv" && !item.franchise && (
-                <div className="space-y-6">
-                  <div className="flex gap-8">
-                    <div className="flex-shrink-0">
-                    </div>
-                    <div className="flex-1 space-y-6">
-                    </div>
-                  </div>
-
-
-                  {/* Episode Ratings Grid */}
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                    <h3 className="text-xl font-semibold text-foreground">Episode Ratings</h3>
-                    </div>
-                  <EpisodeRatingGrid tvId={item.id} seasons={item.seasons || 1} />
-                  </div>
-                </div>
-              )}
             </div>
           </>
         )}

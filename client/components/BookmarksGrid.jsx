@@ -149,26 +149,35 @@ function BookmarkCard({
 
   return (
     <div
-      className={`relative group w-full max-w-[220px] ${selectionMode && item.type === 'movie' ? 'cursor-pointer' : 'cursor-pointer'}`}
+      className={`relative group w-full max-w-[220px] ${(!selectionMode && (item.type === 'tv' || item.type === 'movie')) ? 'cursor-default' : 'cursor-pointer'}`}
       onMouseEnter={() => { setHoveredCard(`${item.type}-${item.id}`); ensureVerifiedImdbRating(); }}
       onMouseLeave={() => setHoveredCard(null)}
       onClick={() => {
-        if (selectionMode && item.type === 'movie') {
-          onToggleSelect && onToggleSelect(item);
-        } else {
-          onCardClick(item);
+        // Make TV and Movie cards non-interactive by default. Movies remain selectable when selectionMode is active.
+        if (item.type === 'tv') return;
+        if (item.type === 'movie') {
+          if (selectionMode) {
+            onToggleSelect && onToggleSelect(item);
+            return;
+          }
+          return;
         }
+        onCardClick && onCardClick(item);
       }}
       onKeyDown={(e) => {
-        if (selectionMode && item.type === 'movie' && (e.key === 'Enter' || e.key === ' ')) {
-          e.preventDefault();
-          onToggleSelect && onToggleSelect(item);
+        if (item.type === 'tv') return;
+        if (item.type === 'movie') {
+          if (selectionMode && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            onToggleSelect && onToggleSelect(item);
+          }
+          return;
         }
       }}
       role={selectionMode && item.type === 'movie' ? 'button' : undefined}
-      tabIndex={selectionMode && item.type === 'movie' ? 0 : -1}
+      tabIndex={!selectionMode && (item.type === 'tv' || item.type === 'movie') ? -1 : (selectionMode && item.type === 'movie' ? 0 : 0)}
       aria-pressed={selectionMode && item.type === 'movie' ? isSelected(item) : undefined}
-      aria-disabled={selectionMode && item.type !== 'movie' ? true : undefined}
+      aria-disabled={!selectionMode && (item.type === 'tv' || item.type === 'movie') ? true : undefined}
     >
       <div className={`relative aspect-[2/3] rounded-2xl overflow-hidden bg-card/80 backdrop-blur-sm border ${isSelected(item) ? 'border-primary ring-2 ring-ring' : 'border-border/30'} shadow-xl transition-all duration-300 group-hover:scale-105 group-hover:shadow-2xl`}>
         <FallbackImage
@@ -221,6 +230,10 @@ function BookmarkCard({
               >
                 <X className="w-4 h-4" />
               </button>
+            </div>
+
+            <div className="text-center">
+              <div className="text-white text-lg font-semibold truncate" title={item.title}>{item.title}</div>
             </div>
 
             <div className="text-white space-y-3">
@@ -381,7 +394,7 @@ function PaginationControlsBar({
                           <li
                             key={res.franchiseKey}
                             className="flex items-center gap-3 px-3 py-2 hover:bg-secondary/40 cursor-pointer"
-                            onClick={() => onCardClick({ ...cover, franchise: res.franchise })}
+                            onClick={() => onCardClick && onCardClick({ ...cover, franchise: res.franchise })}
                           >
                             <img src={cover.poster} alt={res.franchise} className="w-8 h-12 object-cover rounded-md" />
                             <div className="flex-1">
@@ -395,8 +408,8 @@ function PaginationControlsBar({
                       return (
                         <li
                           key={`${it.type}-${it.id}`}
-                          className="flex items-center gap-3 px-3 py-2 hover:bg-secondary/40 cursor-pointer"
-                          onClick={() => onCardClick(it)}
+                          className={`flex items-center gap-3 px-3 py-2 hover:bg-secondary/40 ${it.type === 'tv' || it.type === 'movie' ? '' : 'cursor-pointer'}`}
+                          onClick={() => { if (it.type === 'tv' || it.type === 'movie') return; onCardClick && onCardClick(it); }}
                         >
                           <img src={it.poster} alt={it.title} className="w-8 h-12 object-cover rounded-md" />
                           <div className="flex-1">
@@ -647,7 +660,7 @@ export default function BookmarksGrid({
                 className="relative group cursor-pointer w-full max-w-[220px]"
                 onMouseEnter={() => setHoveredCard(card.franchiseKey)}
                 onMouseLeave={() => setHoveredCard(null)}
-                onClick={() => onCardClick({ ...movies[0], franchise })}
+                onClick={() => { if (movies[0].type === 'tv') return; onCardClick && onCardClick({ ...movies[0], franchise }); }}
               >
                 <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-gradient-to-br from-card via-card/90 to-card/80 border border-border/50 shadow-xl transition-all duration-300 group-hover:scale-105 group-hover:shadow-2xl group-hover:border-primary/30">
                   <FallbackImage
@@ -712,6 +725,10 @@ export default function BookmarksGrid({
                         >
                           <X className="w-4 h-4" />
                         </button>
+                      </div>
+
+                      <div className="text-center">
+                        <div className="text-white text-lg font-semibold truncate" title={franchise}>{franchise}</div>
                       </div>
 
                       <div className="text-white space-y-3">

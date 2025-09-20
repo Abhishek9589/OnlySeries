@@ -1,11 +1,13 @@
 import axios from "axios";
 
-// TMDb API Keys from environment (support rotation between multiple keys)
+// TMDb API Keys from environment (single key required)
 const TMDB_API_KEYS = [
-  process.env.TMDB_API_KEY, // single key backwards compatibility
-  process.env.TMDB_API_KEY_1 || "b8468686fa432070fa187105f4dbe9a7",
-  process.env.TMDB_API_KEY_2 || "7aa1c9da1a877c7d1de537fae27b119a",
+  (process.env.TMDB_API_KEY)
 ].filter(k => k && k !== "");
+
+if (TMDB_API_KEYS.length === 0) {
+  throw new Error('TMDB_API_KEY is not set in the environment');
+}
 
 let currentTmdbKeyIndex = 0;
 const failedTmdbKeys = new Set();
@@ -80,14 +82,18 @@ const tmdbGet = async (url, options = {}) => {
   throw lastError || new Error('No TMDb API keys available');
 };
 
-// OMDb API Keys array for automatic rotation/fallback
+// OMDb API Keys array - use only OMDB_API_KEY_1..OMDB_API_KEY_5
 const OMDB_API_KEYS = [
-  process.env.OMDB_API_KEY_1 || "ed102618",
-  process.env.OMDB_API_KEY_2 || "4bf3c9e5",
-  process.env.OMDB_API_KEY_3 || "b78032a1",
-  process.env.OMDB_API_KEY_4 || "73943cc2",
-  process.env.OMDB_API_KEY_5 || "247ecdc6"
+  process.env.OMDB_API_KEY_1,
+  process.env.OMDB_API_KEY_2,
+  process.env.OMDB_API_KEY_3,
+  process.env.OMDB_API_KEY_4,
+  process.env.OMDB_API_KEY_5,
 ].filter(key => key && key !== ""); // Remove empty keys
+
+if (OMDB_API_KEYS.length === 0) {
+  throw new Error('No OMDb API keys configured. Set OMDB_API_KEY_1..OMDB_API_KEY_5 in the environment.');
+}
 
 // Track current key index and failed keys
 let currentOmdbKeyIndex = 0;
@@ -350,12 +356,9 @@ export const getIMDbRating = async (req, res) => {
           continue; // Try next key
         }
 
-        // Success - return the result
-        console.log(`OMDb API success with key ${currentKey.substring(0, 4)}...`);
+        // Success - return only the IMDb rating (do not expose other OMDb fields)
         return res.json({
           imdbRating: response.data.imdbRating || "N/A",
-          imdbID: response.data.imdbID,
-          apiKeyUsed: currentKey.substring(0, 4) + "..." // For debugging
         });
 
       } catch (error) {
@@ -375,12 +378,10 @@ export const getIMDbRating = async (req, res) => {
     console.error(`All OMDb API attempts failed. Last error:`, lastError?.message);
     res.json({
       imdbRating: "N/A",
-      imdbID: null,
-      error: "All API keys exhausted"
     });
 
   } catch (error) {
     console.error("OMDb API unexpected error:", error);
-    res.json({ imdbRating: "N/A", imdbID: null });
+    res.json({ imdbRating: "N/A" });
   }
 };
