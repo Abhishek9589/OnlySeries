@@ -6,15 +6,16 @@ const TMDB_API_KEYS = [
 ].filter(k => k && k !== "");
 
 if (TMDB_API_KEYS.length === 0) {
-  throw new Error('TMDB_API_KEY is not set in the environment');
+  console.warn('Warning: TMDB_API_KEY is not set in the environment. TMDb API requests will fail until configured.');
 }
 
 let currentTmdbKeyIndex = 0;
 const failedTmdbKeys = new Set();
 
 const getNextTmdbApiKey = () => {
+  if (TMDB_API_KEYS.length === 0) return null;
   if (failedTmdbKeys.size >= TMDB_API_KEYS.length) {
-    console.log("All TMDb API keys exhausted, resetting failed keys set");
+    console.warn("All TMDb API keys exhausted, resetting failed keys set");
     failedTmdbKeys.clear();
     currentTmdbKeyIndex = 0;
   }
@@ -28,16 +29,17 @@ const getNextTmdbApiKey = () => {
     }
   }
 
-  return TMDB_API_KEYS[0];
+  return TMDB_API_KEYS[0] || null;
 };
 
 const markTmdbKeyAsFailed = (key) => {
   failedTmdbKeys.add(key);
-  console.log(`TMDb API key ${key.substring(0, 4)}... marked as failed. Failed keys: ${failedTmdbKeys.size}/${TMDB_API_KEYS.length}`);
+  console.log(`TMDb API key marked as failed. Failed keys: ${failedTmdbKeys.size}/${TMDB_API_KEYS.length}`);
   currentTmdbKeyIndex = (currentTmdbKeyIndex + 1) % TMDB_API_KEYS.length;
 };
 
 const tmdbGet = async (url, options = {}) => {
+  if (TMDB_API_KEYS.length === 0) throw new Error('No TMDb API keys configured');
   let lastError = null;
   const maxAttempts = TMDB_API_KEYS.length;
 
@@ -92,7 +94,7 @@ const OMDB_API_KEYS = [
 ].filter(key => key && key !== ""); // Remove empty keys
 
 if (OMDB_API_KEYS.length === 0) {
-  throw new Error('No OMDb API keys configured. Set OMDB_API_KEY_1..OMDB_API_KEY_5 in the environment.');
+  console.warn('Warning: No OMDb API keys configured. OMDb requests will return N/A until configured.');
 }
 
 // Track current key index and failed keys
@@ -103,7 +105,7 @@ const failedKeys = new Set();
 const getNextOmdbApiKey = () => {
   // If all keys have failed, reset the failed set (maybe quotas reset)
   if (failedKeys.size >= OMDB_API_KEYS.length) {
-    console.log("All OMDb API keys exhausted, resetting failed keys set");
+    console.warn("All OMDb API keys exhausted, resetting failed keys set");
     failedKeys.clear();
     currentOmdbKeyIndex = 0;
   }
@@ -126,7 +128,7 @@ const getNextOmdbApiKey = () => {
 // Function to mark a key as failed
 const markOmdbKeyAsFailed = (key) => {
   failedKeys.add(key);
-  console.log(`OMDb API key ${key.substring(0, 4)}... marked as failed. Failed keys: ${failedKeys.size}/${OMDB_API_KEYS.length}`);
+  console.log(`OMDb API key marked as failed. Failed keys: ${failedKeys.size}/${OMDB_API_KEYS.length}`);
 
   // Move to next key
   currentOmdbKeyIndex = (currentOmdbKeyIndex + 1) % OMDB_API_KEYS.length;
@@ -138,6 +140,11 @@ export const searchMovies = async (req, res) => {
     const { query, page } = req.query;
     if (!query) {
       return res.status(400).json({ error: "Query parameter is required" });
+    }
+
+    // If no TMDb API key configured, return a clear 503 so clients can surface a helpful message
+    if (TMDB_API_KEYS.length === 0) {
+      return res.status(503).json({ error: "TMDb API key not configured. Please set TMDB_API_KEY in the environment." });
     }
 
     const response = await tmdbGet(`https://api.themoviedb.org/3/search/movie`, {
@@ -157,6 +164,11 @@ export const searchTV = async (req, res) => {
     const { query, page } = req.query;
     if (!query) {
       return res.status(400).json({ error: "Query parameter is required" });
+    }
+
+    // If no TMDb API key configured, return a clear 503 so clients can surface a helpful message
+    if (TMDB_API_KEYS.length === 0) {
+      return res.status(503).json({ error: "TMDb API key not configured. Please set TMDB_API_KEY in the environment." });
     }
 
     const response = await tmdbGet(`https://api.themoviedb.org/3/search/tv`, {
@@ -332,7 +344,7 @@ export const getIMDbRating = async (req, res) => {
       attemptsCount++;
 
       try {
-        console.log(`Attempting OMDb API request with key ${currentKey.substring(0, 4)}... (attempt ${attemptsCount}/${maxAttempts})`);
+        console.log(`Attempting OMDb API request (attempt ${attemptsCount}/${maxAttempts})`);
 
         const response = await axios.get(`https://www.omdbapi.com/`, {
           params: {
@@ -350,7 +362,7 @@ export const getIMDbRating = async (req, res) => {
              response.data.Error?.includes("Invalid API key") ||
              response.status === 401)) {
 
-          console.log(`OMDb API key ${currentKey.substring(0, 4)}... failed: ${response.data.Error}`);
+          console.log(`OMDb API key failed: ${response.data.Error}`);
           markOmdbKeyAsFailed(currentKey);
           lastError = new Error(`API Key failed: ${response.data.Error}`);
           continue; // Try next key
@@ -362,7 +374,7 @@ export const getIMDbRating = async (req, res) => {
         });
 
       } catch (error) {
-        console.error(`OMDb API error with key ${currentKey.substring(0, 4)}...:`, error.message);
+        console.error(`OMDb API error:`, error.message);
 
         // If it's a 401 or 403, mark key as failed
         if (error.response?.status === 401 || error.response?.status === 403) {

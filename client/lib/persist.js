@@ -20,6 +20,7 @@ function tryLocalSet(key, value) {
 
 function openIdb() {
   return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') return reject(new Error('IndexedDB is not available'));
     const req = indexedDB.open(IDB_DB, 1);
     req.onupgradeneeded = () => {
       const db = req.result;
@@ -55,19 +56,33 @@ async function idbGet(key) {
 
 export async function storeBookmarks(arr) {
   const json = JSON.stringify(arr || []);
-  // Prefer localStorage if small enough and allowed
-  const ok = tryLocalSet(LS_KEY, json);
-  if (ok) {
-    try { localStorage.removeItem(LS_USE_IDB_FLAG); } catch {}
-    return;
-  }
-  // Fall back to IndexedDB
-  await idbSet(IDB_BOOKMARKS_KEY, json);
+
+  // If payload is large, prefer IndexedDB directly to avoid quota issues
   try {
-    localStorage.setItem(LS_USE_IDB_FLAG, "true");
-    // Keep a tiny marker in LS to avoid future QuotaExceeded loops
-    localStorage.removeItem(LS_KEY);
-  } catch {}
+    const size = textSize(json);
+    const MAX_LS_BYTES = 800 * 1024; // 800KB
+    if (size <= MAX_LS_BYTES) {
+      const ok = tryLocalSet(LS_KEY, json);
+      if (ok) {
+        try { localStorage.removeItem(LS_USE_IDB_FLAG); } catch {}
+        return;
+      }
+    }
+  } catch (e) {
+    // ignore and fall back to IDB
+  }
+
+  // Fall back to IndexedDB
+  try {
+    await idbSet(IDB_BOOKMARKS_KEY, json);
+    try {
+      localStorage.setItem(LS_USE_IDB_FLAG, "true");
+      localStorage.removeItem(LS_KEY);
+    } catch {}
+  } catch (err) {
+    // Last resort: try localStorage again if IDB failed
+    try { localStorage.setItem(LS_KEY, json); } catch (e) {}
+  }
 }
 
 export async function loadBookmarks() {

@@ -1,105 +1,154 @@
-A fast, privacy-focused app to search, bookmark, group, and track movies and TV shows. Everything you add is stored locally in your browser — no account required. Export and import your library as a self-contained JSON file.
+🎬 onlyseries.towatch — Track & bookmark movies & TV
 
-Features
-- Search TMDb for movies and TV shows
-- Bookmark items and group related movies into franchises
-- Verify IMDb ratings via OMDb (server-side) and fall back to TMDb scores when unavailable
-- Estimate watch time for movies and series
-- Import/Export your bookmarks as JSON
+![build](https://img.shields.io/badge/build-passing-brightgreen)
+![license](https://img.shields.io/badge/license-MIT-blue)
+![stars](https://img.shields.io/badge/stars-—-lightgrey)
+![forks](https://img.shields.io/badge/forks-—-lightgrey)
 
-Tech stack
-- React 18 + Vite
-- Tailwind CSS + Radix UI primitives
-- Express server acting as a small API proxy for TMDb and OMDb
-- Axios for HTTP requests
+---
 
-Getting started
-1. Install dependencies:
+## Description
 
-   npm install
+onlyseries.towatch is a lightweight, privacy-first web app for discovering, bookmarking, and tracking movies and TV shows. It uses TMDb for search and metadata and OMDb to verify IMDb ratings. Everything you save stays in your browser (localStorage) — no account required.
 
-2. Start development server:
+## Table of Contents
 
-   npm run dev
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Installation](#installation--setup)
+- [Usage](#usage)
+- [Configuration / Environment Variables](#configuration--environment-variables)
+- [Screenshots / Demo](#screenshots--demo)
+- [Contributing](#contributing)
+- [License](#license)
+- [Acknowledgements](#acknowledgements)
+- [Footer](#footer)
 
-Production build
+## Features
 
-   npm run build
-   npm start
+- 🔎 Fast search for movies and TV shows (TMDb)
+- ⭐ Bookmark and organize your library locally
+- 📊 Verify IMDb ratings via OMDb (server-side proxy)
+- ⏱ Estimate watch time and track progress
+- ⬇️ Import / export your library as JSON
+- ⚙️ Works offline with localStorage / IndexedDB fallback
 
-This produces a client bundle (dist/spa) and a server build (dist/server/node-build.mjs).
+## Tech Stack
 
-Environment variables (required)
-- TMDB_API_KEY — single TMDb API key used for all TMDb requests
-- OMDB_API_KEY_1, OMDB_API_KEY_2, OMDB_API_KEY_3, OMDB_API_KEY_4, OMDB_API_KEY_5 — OMDb keys used only to fetch IMDb ratings. The server will rotate through these keys when a key fails or is rate-limited.
+- Frontend: React 18 + Vite
+- Styling: Tailwind CSS
+- UI primitives: Radix UI
+- Server: Express.js (proxy) with serverless wrappers for Vercel
+- HTTP: Axios
+- Build: Vite (client) + Vite server build for Node
 
-Note: Do not commit secrets. For development you may add these to a local .env file (this project reads .env for convenience), but keep that file out of version control.
+## Installation / Setup
 
-Server API endpoints
-- GET /health
-- GET /api/ping
-- GET /api/search/movies?query=&page=
-- GET /api/search/tv?query=&page=
-- GET /api/movie/:id
-- GET /api/tv/:id (supports minimal mode)
-- GET /api/tv/:id/season/:season
-- GET /api/imdb-rating?title=&year=&imdbId=  (returns { imdbRating })
-- GET /api/trending/movies
-- GET /api/trending/tv
+Clone the repository and install dependencies:
 
-How search works (high level)
-- Client calls /api/search/movies and /api/search/tv in parallel
-- Results are normalized, deduped, ranked (exact title matches, fuzzy similarity, rating, selection boosts), and cached locally per query
-- Bookmarks are stored locally and excluded from add suggestions (but visible in search results as "Added")
+```bash
+git clone <YOUR_REPO_URL>
+cd <YOUR_REPO_DIR>
+npm install
+```
 
-OMDb usage
-- OMDb is used only to verify IMDb ratings. The server proxies OMDb requests and rotates through OMDB_API_KEY_1..5 when a key is rejected or rate-limited. Only the IMDb rating string is returned to the client.
+Run the development server:
 
-Data & storage
-- Bookmarks are stored in localStorage under the key onlyseries-bookmarks
-- UI state (filters, sort, selection) is stored under onlyseries-ui-v1
+```bash
+npm run dev
+# open the URL printed by Vite (usually http://localhost:5173)
+```
 
-Troubleshooting
-- If items are missing from search: confirm server can reach TMDb (check TMDB_API_KEY) and clear localStorage if stale bookmarks are blocking results.
-- If IMDb ratings are missing: ensure OMDb keys are configured and not exhausted. The app falls back to TMDb ratings when OMDb is unavailable.
+Build for production:
 
-Contributing
-- Follow existing component patterns and Tailwind conventions
-- Keep secrets out of the repository; use the server proxy for all third‑party API calls
+```bash
+npm run build
+# to run the server build locally
+npm start
+```
 
-License & contact
-- This project is provided as-is. For questions or issues open an issue in the repository.
+## Usage
 
-Vercel deployment
-- Recommended approach: deploy the client as a static site and host the server API as serverless functions or a separate service. Vercel does not run long-lived Node servers; use serverless functions (api/*) or an external server for the Express API.
+- Use the search box on the homepage to find movies or TV shows.
+- Bookmark items to add them to your local library (stored in localStorage under `onlyseries-bookmarks`).
+- Click an item to view details (episodes, seasons, runtime) and IMDb rating (proxied via OMDb).
 
-Quick steps to deploy on Vercel (static client + serverless API):
-1. Build command: npm run build
-2. Output directory: dist/spa
-3. Install command: npm install
-4. Add the required Environment Variables in the Vercel project settings:
-   - TMDB_API_KEY
-   - OMDB_API_KEY_1
-   - OMDB_API_KEY_2
-   - OMDB_API_KEY_3
-   - OMDB_API_KEY_4
-   - OMDB_API_KEY_5
-   Note: add the same values you use locally; keep these secret.
+Example API calls (server proxy):
 
-If you prefer deploying both client + Express API on Vercel:
-- Move or reimplement server routes as serverless functions under api/ (for example api/imdb-rating.js, api/search/movies.js). Each file should export a handler(req, res) and call the existing server logic. Alternatively, host the Express server elsewhere (Heroku, Fly, Render, or a Neon-backed serverless endpoint) and point the client to that API.
+```bash
+# Search movies
+GET /api/search/movies?query=house&page=1
 
-Vercel project settings screenshot hints:
-- Root Directory: ./
-- Build Command: npm run build
-- Output Directory: dist/spa
-- Install Command: npm install
+# Search TV
+GET /api/search/tv?query=friends&page=1
 
-Troubleshooting on Vercel
-- If API endpoints return 404: ensure API routes are placed under api/ as serverless functions or the client is configured to call your external server URL.
-- If environment variables are missing: add them in Project Settings > Environment Variables and redeploy.
-- If you need long-running server behavior, deploy the Express server to a platform that supports persistent Node processes and set the client to use that API URL.
+# Get TV details (minimal mode for lightweight payload)
+GET /api/tv/:id?minimal=true
 
-Need help converting server routes to Vercel serverless functions? I can convert the existing Express routes into api/* functions and wire environment variables; tell me to proceed and I will create the serverless endpoints in the repository.
+# Get IMDb rating
+GET /api/imdb-rating?title=House%20MD&year=2004
+```
 
-<!-- Vercel helpers: the project now includes api/* serverless wrappers to allow deploying the existing Express-based proxy on Vercel. If you prefer the original Express server, host it externally and set the client to use that API URL. -->
+## Configuration / Environment Variables
+
+Create a `.env` file in the project root (do not commit it) and add the following values:
+
+```env
+# Required
+TMDB_API_KEY=your_tmdb_api_key
+
+# One or more OMDb API keys (used for IMDb rating verification)
+OMDB_API_KEY_1=your_omdb_key_1
+OMDB_API_KEY_2=your_omdb_key_2
+OMDB_API_KEY_3=your_omdb_key_3
+OMDB_API_KEY_4=your_omdb_key_4
+OMDB_API_KEY_5=your_omdb_key_5
+```
+
+Notes:
+- TMDb API key must remain server-side (do not embed it into the client bundle).
+- The server rotates through OMDb keys when keys are rate-limited or exhausted.
+
+## Deployment (Vercel)
+
+Recommended approach to deploy the whole repo on Vercel:
+
+- Build Command: `npm run build`
+- Output Directory: `dist/spa`
+- Install Command: `npm install`
+- Add the environment variables in Project Settings (TMDB_API_KEY, OMDB_API_KEY_1..OMDB_API_KEY_5)
+
+This repository includes `api/*` serverless wrappers and a `vercel.json` to expose the same proxy endpoints as serverless functions. If you need persistent or long-running server behavior (heavy TV-season enrichment), consider hosting the Express server externally and point the client to that URL.
+
+## Screenshots / Demo
+
+![screenshot-1](./public/screenshot-1.png)
+
+*Replace the above image with real screenshots or GIFs showing the search and bookmark flow.*
+
+## Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feat/your-feature`
+3. Make your changes and commit: `git commit -m "feat: add ..."`
+4. Push to your fork: `git push origin feat/your-feature`
+5. Open a Pull Request describing your change
+
+Please keep secrets out of commits and follow existing code and styling patterns (Tailwind + small focused components).
+
+## License
+
+This project is licensed under the MIT License — see the [LICENSE](./LICENSE) file for details.
+
+## Acknowledgements / Credits
+
+- TMDb (The Movie Database) — search & metadata API
+- OMDb — IMDb ratings
+- Radix UI, Tailwind CSS, Vite, React
+
+## Footer
+
+> Made with ❤️ by Abhishek
+

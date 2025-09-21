@@ -42,7 +42,7 @@ export default function FallbackImage({
       {isLoading && (
         <div className={`absolute inset-0 bg-gray-blue/30 animate-pulse ${className}`}>
           <div className="flex items-center justify-center h-full">
-            <div className="w-8 h-8 border-2 border-teal border-t-transparent rounded-full animate-spin"></div>
+            <div className="w-8 h-8 border-2 border-ring border-t-transparent rounded-full animate-spin"></div>
           </div>
         </div>
       )}

@@ -99,9 +99,7 @@
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
+  /* Avoid applying borders to every element globally — use utility classes where needed */
 
   body {
     @apply bg-background text-foreground;
@@ -118,9 +116,7 @@
   }
 
   /* Apply dark theme by default */
-  html {
-    @apply dark;
-  }
+  /* To enable dark theme add the 'dark' class to the <html> element at runtime. */
 
   /* Custom scrollbar styles: hide scrollbar visually but keep scrolling functional */
   .custom-scrollbar::-webkit-scrollbar,

@@ -117,13 +117,24 @@ const SearchBar = memo(function SearchBar({
     return wordScore + freqBoost;
   };
 
+  const safeYear = (dateStr) => {
+    try {
+      if (!dateStr) return "";
+      const d = new Date(dateStr);
+      const y = d && Number.isFinite(d.getFullYear()) ? String(d.getFullYear()) : "";
+      return y;
+    } catch (e) {
+      return "";
+    }
+  };
+
   const toUnifiedItem = (entry) => {
     if (entry.kind === "movie") {
       const movie = entry.raw;
       return {
         id: movie.id,
         title: movie.title,
-        year: movie.release_date ? new Date(movie.release_date).getFullYear().toString() : "",
+        year: safeYear(movie.release_date) || "",
         poster: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null,
         imdbRating: typeof movie.vote_average === 'number' ? String(movie.vote_average.toFixed(1)) : "N/A",
         type: "movie",
@@ -134,7 +145,7 @@ const SearchBar = memo(function SearchBar({
     return {
       id: series.id,
       title: series.name,
-      year: series.first_air_date ? new Date(series.first_air_date).getFullYear().toString() : "",
+      year: safeYear(series.first_air_date) || "",
       poster: series.poster_path ? `https://image.tmdb.org/t/p/w500${series.poster_path}` : null,
       imdbRating: typeof series.vote_average === 'number' ? String(series.vote_average.toFixed(1)) : "N/A",
       type: "tv",
@@ -200,7 +211,7 @@ const SearchBar = memo(function SearchBar({
         if (entry.kind === "movie") {
           const movie = entry.raw;
           try {
-            const year = new Date(movie.release_date).getFullYear().toString();
+            const year = safeYear(movie.release_date) || "";
             // Only fetch movie details (no OMDb) to keep search snappy
             const movieDetails = await getMovieDetails(movie.id, { timeout: 4000 }).catch(() => null);
             const rating = typeof movieDetails?.vote_average === "number" ? String(movieDetails.vote_average.toFixed(1)) : (typeof movie.vote_average === 'number' ? String(movie.vote_average.toFixed(1)) : "N/A");
@@ -219,7 +230,7 @@ const SearchBar = memo(function SearchBar({
         } else {
           const series = entry.raw;
           try {
-            const year = new Date(series.first_air_date).getFullYear().toString();
+            const year = safeYear(series.first_air_date) || "";
             // Use minimal TV details (no per-season fetches) for search
             const seriesDetails = await getTVDetails(series.id, { minimal: true, timeout: 3000 }).catch(() => null);
             const rating = typeof seriesDetails?.vote_average === "number" ? String(seriesDetails.vote_average.toFixed(1)) : (typeof series.vote_average === 'number' ? String(series.vote_average.toFixed(1)) : "N/A");
@@ -292,14 +303,6 @@ const SearchBar = memo(function SearchBar({
         });
 
       if (requestId === requestSeqRef.current) {
-        // Debugging: log results so we can trace why an expected TV show may be hidden
-        try {
-          console.debug('[SearchBar] raw results count', allResultsRaw.length);
-          const tvList = allResultsRaw.filter((r) => r.type === 'tv').map((r) => `${r.title} (${r.id})`);
-          const movieList = allResultsRaw.filter((r) => r.type === 'movie').map((r) => `${r.title} (${r.id})`);
-          console.debug('[SearchBar] raw tv:', tvList.slice(0,10));
-          console.debug('[SearchBar] raw movies:', movieList.slice(0,10));
-        } catch (e) {}
 
         setResults(successfulResults);
         setCachedSearch(normalizedQuery, successfulResults);
@@ -307,8 +310,7 @@ const SearchBar = memo(function SearchBar({
         try {
           const tvCount = successfulResults.filter((r) => r.type === "tv").length;
           const movieCount = successfulResults.filter((r) => r.type === "movie").length;
-          console.debug('[SearchBar] successfulResults counts', { tvCount, movieCount, q: normalizedQuery });
-          // Auto-switch tab if one type is empty
+                    // Auto-switch tab if one type is empty
           if (tvCount === 0 && movieCount > 0) {
             setActiveTab("movie");
           } else if (movieCount === 0 && tvCount > 0) {
@@ -324,6 +326,9 @@ const SearchBar = memo(function SearchBar({
     } catch (error) {
       console.error("Search error:", error);
       setResults([]);
+      if (requestId === requestSeqRef.current) {
+        setHasError(true);
+      }
     } finally {
       if (requestId === requestSeqRef.current) {
         setIsLoading(false);
@@ -421,8 +426,8 @@ const SearchBar = memo(function SearchBar({
           const imdbId = details?.external_ids?.imdb_id || null;
           const title = it.type === 'movie' ? (details?.title || it.title) : (details?.name || it.title);
           const year = it.type === 'movie'
-            ? (details?.release_date ? String(new Date(details.release_date).getFullYear()) : it.year)
-            : (details?.first_air_date ? String(new Date(details.first_air_date).getFullYear()) : it.year);
+            ? (details?.release_date ? (safeYear(details.release_date) || it.year) : it.year)
+            : (details?.first_air_date ? (safeYear(details.first_air_date) || it.year) : it.year);
 
           let rating = await getIMDbRating({ imdbId, title, year }).catch(() => 'N/A');
           if (!rating || rating === 'N/A') {
@@ -453,6 +458,17 @@ const SearchBar = memo(function SearchBar({
     } catch {}
   }, [searchTerm]);
 
+  // Log misses once per query when no results are shown to avoid side-effects during render
+  const lastMissRef = useRef('');
+  useEffect(() => {
+    const q = (searchTerm || '').trim();
+    if (!showResults || isLoading) return;
+    if (q.length >= 2 && results.length === 0 && lastMissRef.current !== q) {
+      onNoResultsLogMiss();
+      lastMissRef.current = q;
+    }
+  }, [showResults, isLoading, searchTerm, results.length, onNoResultsLogMiss]);
+
   if (!isVisible) return null;
 
   return (
@@ -461,6 +477,7 @@ const SearchBar = memo(function SearchBar({
         <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
         <input
           type="text"
+          aria-label="Search for a movie or series"
           placeholder="Search for a movie or series..."
           value={searchTerm}
           onChange={(e) => { setSearchTerm(e.target.value); setVisibleCount(10); }}
@@ -608,7 +625,6 @@ const SearchBar = memo(function SearchBar({
             <div className="p-6 text-center text-muted-foreground">
               <p>No results found for "{searchTerm}"</p>
               <p className="text-sm mt-1">Try different keywords or check spelling</p>
-              {onNoResultsLogMiss()}
             </div>
           ) : (
             <div className="p-6 text-center text-muted-foreground">

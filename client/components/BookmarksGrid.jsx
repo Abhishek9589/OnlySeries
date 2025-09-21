@@ -90,7 +90,7 @@ function BookmarkCard({
       cancelled = true;
       mountedRef.current = false;
     };
-  }, [item.id]);
+  }, [item.id, item.runtime, item.imdbRating, item.episodes, item.averageEpisodeRuntime]);
 
   const ensureVerifiedImdbRating = async () => {
     const cacheKey = `${item.type}-${item.id}`;
@@ -149,35 +149,31 @@ function BookmarkCard({
 
   return (
     <div
-      className={`relative group w-full max-w-[220px] ${(!selectionMode && (item.type === 'tv' || item.type === 'movie')) ? 'cursor-default' : 'cursor-pointer'}`}
+      className={`relative group w-full max-w-[220px] cursor-default`}
       onMouseEnter={() => { setHoveredCard(`${item.type}-${item.id}`); ensureVerifiedImdbRating(); }}
       onMouseLeave={() => setHoveredCard(null)}
       onClick={() => {
-        // Make TV and Movie cards non-interactive by default. Movies remain selectable when selectionMode is active.
-        if (item.type === 'tv') return;
-        if (item.type === 'movie') {
-          if (selectionMode) {
+        if (selectionMode) {
+          // In selection mode only movies are selectable
+          if (item.type === 'movie') {
             onToggleSelect && onToggleSelect(item);
-            return;
           }
-          return;
         }
-        onCardClick && onCardClick(item);
+        // Otherwise intentionally do NOT open the item on click (click-to-open behavior removed)
       }}
       onKeyDown={(e) => {
-        if (item.type === 'tv') return;
-        if (item.type === 'movie') {
-          if (selectionMode && (e.key === 'Enter' || e.key === ' ')) {
+        if (selectionMode) {
+          if (item.type === 'movie' && (e.key === 'Enter' || e.key === ' ')) {
             e.preventDefault();
             onToggleSelect && onToggleSelect(item);
           }
           return;
         }
+        // Intentionally do NOT open the item on Enter/Space when not in selection mode
       }}
       role={selectionMode && item.type === 'movie' ? 'button' : undefined}
-      tabIndex={!selectionMode && (item.type === 'tv' || item.type === 'movie') ? -1 : (selectionMode && item.type === 'movie' ? 0 : 0)}
+      tabIndex={(!selectionMode || (selectionMode && item.type === 'movie')) ? 0 : -1}
       aria-pressed={selectionMode && item.type === 'movie' ? isSelected(item) : undefined}
-      aria-disabled={!selectionMode && (item.type === 'tv' || item.type === 'movie') ? true : undefined}
     >
       <div className={`relative aspect-[2/3] rounded-2xl overflow-hidden bg-card/80 backdrop-blur-sm border ${isSelected(item) ? 'border-primary ring-2 ring-ring' : 'border-border/30'} shadow-xl transition-all duration-300 group-hover:scale-105 group-hover:shadow-2xl`}>
         <FallbackImage
@@ -233,7 +229,7 @@ function BookmarkCard({
             </div>
 
             <div className="text-center">
-              <div className="text-white text-lg font-semibold truncate" title={item.title}>{item.title}</div>
+              <div className="text-white text-lg font-semibold" title={item.title} style={{display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'normal'}}>{item.title}</div>
             </div>
 
             <div className="text-white space-y-3">
@@ -409,11 +405,10 @@ function PaginationControlsBar({
                         <li
                           key={`${it.type}-${it.id}`}
                           className={`flex items-center gap-3 px-3 py-2 hover:bg-secondary/40 ${it.type === 'tv' || it.type === 'movie' ? '' : 'cursor-pointer'}`}
-                          onClick={() => { if (it.type === 'tv' || it.type === 'movie') return; onCardClick && onCardClick(it); }}
                         >
                           <img src={it.poster} alt={it.title} className="w-8 h-12 object-cover rounded-md" />
                           <div className="flex-1">
-                            <div className="text-sm text-foreground font-medium">{it.title}</div>
+                            <div className="text-sm text-foreground font-medium" style={{display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'normal'}}>{it.title}</div>
                             <div className="text-xs text-muted-foreground capitalize">{it.type}</div>
                           </div>
                         </li>
@@ -679,7 +674,7 @@ export default function BookmarksGrid({
                   </div>
 
                   <div className="absolute bottom-0 left-0 right-0 p-4">
-                    <div className="text-white font-semibold text-base drop-shadow-lg">
+                    <div className="text-white font-semibold text-base md:text-lg drop-shadow-lg" style={{display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'normal'}}>
                       {franchise}
                     </div>
                   </div>
@@ -728,7 +723,7 @@ export default function BookmarksGrid({
                       </div>
 
                       <div className="text-center">
-                        <div className="text-white text-lg font-semibold truncate" title={franchise}>{franchise}</div>
+                        <div className="text-white text-lg font-semibold" title={franchise} style={{display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'normal'}}>{franchise}</div>
                       </div>
 
                       <div className="text-white space-y-3">

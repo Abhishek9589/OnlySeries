@@ -12,7 +12,7 @@ export default {
     },
     extend: {
       colors: {
-        navy: "#22283",
+        navy: "#222833",
         "gray-blue": "#31363f",
         teal: "#76abae",
         "light-gray": "#eeeeee",

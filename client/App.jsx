@@ -4,17 +4,26 @@ import { Toaster } from "@/components/ui/toaster";
 import { createRoot } from "react-dom/client";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 import Index from "./pages/Index";
 
-function ErrorBoundary({ children }) {
-  // Simple classless error boundary using React 18 error handling via try/catch in render tree
-  // We fallback to a minimal UI with a refresh and reset option
-  let content = children;
-  try {
-    return content;
-  } catch (e) {
-    console.error('App render error:', e);
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error('App render error:', error, info);
+  }
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-foreground p-6">
         <div className="max-w-md w-full bg-card/90 border border-border rounded-xl p-4 text-center">

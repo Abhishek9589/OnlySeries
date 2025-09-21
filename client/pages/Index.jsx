@@ -673,10 +673,24 @@ export default function Index() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem
-                  onClick={() => {
-                    navigator.clipboard.writeText(window.location.href);
-                    setShareToast(true);
-                    setTimeout(() => setShareToast(false), 3000);
+                  onClick={async () => {
+                    try {
+                      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(window.location.href);
+                      } else {
+                        const tmp = document.createElement('input');
+                        tmp.value = window.location.href;
+                        document.body.appendChild(tmp);
+                        tmp.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(tmp);
+                      }
+                      setShareToast(true);
+                      setTimeout(() => setShareToast(false), 3000);
+                    } catch (e) {
+                      console.warn('Failed to copy URL to clipboard', e);
+                      try { window.prompt('Copy URL', window.location.href); } catch {}
+                    }
                   }}
                 >
                   Share Website
