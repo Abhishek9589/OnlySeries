@@ -139,7 +139,7 @@ function BookmarkCard({
   if (loading) {
     return (
       <div className="relative w-full animate-pulse">
-        <div className="aspect-[2/3] rounded-2xl bg-card/60 border border-border/40" />
+        <div className="aspect-[2/3] rounded-none bg-card/60" />
         <div className="mt-3 h-4 bg-card/50 rounded w-3/4 mx-auto" />
         <div className="mt-2 h-3 bg-card/40 rounded w-1/2 mx-auto" />
       </div>
