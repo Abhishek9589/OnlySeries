@@ -1,5 +1,4 @@
 import { X, Clock, Star, Tv, Eye, EyeOff, Play, Search } from "lucide-react";
-import { gsap } from "gsap";
 import FallbackImage from "./FallbackImage";
 import React, { useEffect, useRef, useState } from "react";
 import { getMovieDetails, getTVDetails, getIMDbRating } from "../lib/api";
