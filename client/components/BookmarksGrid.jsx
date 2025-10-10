@@ -293,10 +293,10 @@ function PaginationControlsBar({
   const inputRef = useRef(null);
   useEffect(() => { if (expanded) { inputRef.current?.focus(); } }, [expanded]);
   return (
-    <div className="w-full">
+    <div className="w-full first:hidden">
       <div className="flex items-center gap-2 justify-between">
         <div />
-        <div className="hidden">
+        <div className="flex-1 flex items-center justify-center gap-2 sm:gap-3 text-xs sm:text-sm text-muted-foreground">
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage <= 1}
