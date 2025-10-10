@@ -1,0 +1,10 @@
+import { searchMovies } from '../../server/routes/tmdb-proxy.js';
+
+export default async function handler(req, res) {
+  try {
+    await searchMovies(req, res);
+  } catch (err) {
+    console.error('search/movies wrapper error', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
