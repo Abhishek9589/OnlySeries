@@ -138,7 +138,7 @@ function BookmarkCard({
 
   if (loading) {
     return (
-      <div className="relative w-full max-w-[220px] animate-pulse">
+      <div className="relative w-full animate-pulse">
         <div className="aspect-[2/3] rounded-2xl bg-card/60 border border-border/40" />
         <div className="mt-3 h-4 bg-card/50 rounded w-3/4 mx-auto" />
         <div className="mt-2 h-3 bg-card/40 rounded w-1/2 mx-auto" />
@@ -148,7 +148,7 @@ function BookmarkCard({
 
   return (
     <div
-      className={`relative group w-full max-w-[220px] cursor-default`}
+      className={`relative group w-full cursor-default`}
       onMouseEnter={() => { setHoveredCard(`${item.type}-${item.id}`); ensureVerifiedImdbRating(); }}
       onMouseLeave={() => setHoveredCard(null)}
       onClick={() => {
@@ -174,7 +174,7 @@ function BookmarkCard({
       tabIndex={(!selectionMode || (selectionMode && item.type === 'movie')) ? 0 : -1}
       aria-pressed={selectionMode && item.type === 'movie' ? isSelected(item) : undefined}
     >
-      <div className={`relative aspect-[2/3] rounded-2xl overflow-hidden bg-card/80 backdrop-blur-sm border ${isSelected(item) ? 'border-primary ring-2 ring-ring' : 'border-border/30'} shadow-xl transition-all duration-300 group-hover:scale-105 group-hover:shadow-2xl`}>
+      <div className={`relative aspect-[2/3] rounded-none overflow-hidden bg-card/80 backdrop-blur-sm ${isSelected(item) ? 'ring-2 ring-ring' : ''} transition-all duration-300 group-hover:scale-105`}>
         <FallbackImage
           src={item.poster}
           alt={item.title}
@@ -619,7 +619,7 @@ export default function BookmarksGrid({
 
       <div
         ref={gridRef}
-        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6 lg:gap-8 justify-items-center place-items-center"
+        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 xl:grid-cols-7 gap-0 justify-items-stretch items-stretch"
       >
         {visibleCards.map((card) => {
           if (card.kind === "franchise") {
@@ -627,12 +627,12 @@ export default function BookmarksGrid({
             return (
               <div
                 key={card.franchiseKey}
-                className="relative group cursor-pointer w-full max-w-[220px]"
+                className="relative group cursor-pointer w-full"
                 onMouseEnter={() => setHoveredCard(card.franchiseKey)}
                 onMouseLeave={() => setHoveredCard(null)}
                 onClick={() => { if (movies[0].type === 'tv') return; onCardClick && onCardClick({ ...movies[0], franchise }); }}
               >
-                <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-gradient-to-br from-card via-card/90 to-card/80 border border-border/50 shadow-xl transition-all duration-300 group-hover:scale-105 group-hover:shadow-2xl group-hover:border-primary/30">
+                <div className="relative aspect-[2/3] rounded-none overflow-hidden bg-gradient-to-br from-card via-card/90 to-card/80 transition-all duration-300 group-hover:scale-105">
                   <FallbackImage
                     src={movies[0].poster}
                     alt={franchise}
