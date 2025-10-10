@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { MoreHorizontal, Filter, Eye, EyeOff, ArrowUpDown, RefreshCw, Tv, Play } from "lucide-react";
+import { motion } from "framer-motion";
 import SearchBar from "../components/SearchBar";
 import Timer from "../components/Timer";
 import BookmarksGrid from "../components/BookmarksGrid";
@@ -22,8 +23,8 @@ export default function Index() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [backgroundImage, setBackgroundImage] = useState("");
-  const [watchFilter, setWatchFilter] = useState("all"); // "all", "watched", "unwatched"
-  const [typeFilter, setTypeFilter] = useState("all"); // "all", "movie", "tv"
+  const [watchFilter, setWatchFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [shareToast, setShareToast] = useState(false);
   const [sortType, setSortType] = useState("time_desc");
   const [selectionMode, setSelectionMode] = useState(false);
@@ -32,7 +33,6 @@ export default function Index() {
   const [franchiseName, setFranchiseName] = useState("");
   const [franchiseFilter, setFranchiseFilter] = useState("");
 
-  // Diagnostic: missing OMDb/IMDb ratings
   const [missingRatings, setMissingRatings] = useState([]);
   const [scanning, setScanning] = useState(false);
   const [fetchingRatings, setFetchingRatings] = useState(false);
@@ -40,7 +40,6 @@ export default function Index() {
   const UI_STATE_KEY = "onlyseries-ui-v1";
   const fileInputRef = useRef(null);
 
-  // Restore UI state (filters, sort, selection mode) so app returns to last-used view
   useEffect(() => {
     try {
       const raw = localStorage.getItem(UI_STATE_KEY);
@@ -56,14 +55,11 @@ export default function Index() {
     }
   }, []);
 
-  // Persist UI state whenever relevant values change
   useEffect(() => {
     try {
       const toSave = { watchFilter, typeFilter, sortType, selectionMode };
       localStorage.setItem(UI_STATE_KEY, JSON.stringify(toSave));
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
   }, [watchFilter, typeFilter, sortType, selectionMode]);
 
   const franchiseCounts = useMemo(() => {
@@ -80,7 +76,6 @@ export default function Index() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [bookmarks]);
 
-  // Load bookmarks on mount (IndexedDB fallback supported)
   useEffect(() => {
     (async () => {
       try {
@@ -112,7 +107,6 @@ export default function Index() {
     })();
   }, []);
 
-  // Normalize missing addedAt once to keep time-based sorting stable
   useEffect(() => {
     if (!Array.isArray(bookmarks) || bookmarks.length === 0) return;
     const hasMissing = bookmarks.some((b) => typeof b.addedAt !== "number" || !Number.isFinite(b.addedAt));
@@ -126,12 +120,10 @@ export default function Index() {
     }
   }, [bookmarks]);
 
-  // Lock main page scroll when any dialog or modal is open so only the modal scrollbar is used
   useEffect(() => {
     const anyOpen = dialogOpen || showFranchiseDialog || showResetConfirm;
     if (typeof document === 'undefined') return;
     if (anyOpen) {
-      // remember previous overflow
       document.body.dataset._prevOverflow = document.body.style.overflow || '';
       document.body.style.overflow = 'hidden';
     } else {
@@ -146,219 +138,95 @@ export default function Index() {
     };
   }, [dialogOpen, showFranchiseDialog, showResetConfirm]);
 
-  // Persist bookmarks safely (localStorage or IndexedDB) whenever they change
   useEffect(() => {
     (async () => {
-      try {
-        await storeBookmarks(bookmarks);
-      } catch (e) {
-        console.warn("Failed to store bookmarks", e);
-      }
+      try { await storeBookmarks(bookmarks); } catch {}
     })();
-    if (bookmarks.length > 0) {
-      setBackgroundImage(bookmarks[bookmarks.length - 1].poster);
-    } else {
-      setBackgroundImage("");
-    }
+    if (bookmarks.length > 0) setBackgroundImage(bookmarks[bookmarks.length - 1].poster); else setBackgroundImage("");
   }, [bookmarks]);
 
-  // Enrich bookmarks with accurate runtimes/episode counts from TMDb when missing
   useEffect(() => {
     let cancelled = false;
-
     const needsEnrichment = bookmarks.some((b) => {
-      if (b.type === "movie") {
-        // Enrich when runtime missing OR imdbRating missing/unknown
-        return (!b.runtime || b.runtime <= 0) || (!b.imdbRating || b.imdbRating === "N/A");
-      }
-      if (b.type === "tv") {
-        // Enrich when episodes/runtime or imdbRating missing
-        return (!Number.isFinite(b.episodes) || !Number.isFinite(b.averageEpisodeRuntime)) || (!b.imdbRating || b.imdbRating === "N/A");
-      }
+      if (b.type === "movie") return (!b.runtime || b.runtime <= 0) || (!b.imdbRating || b.imdbRating === "N/A");
+      if (b.type === "tv") return (!Number.isFinite(b.episodes) || !Number.isFinite(b.averageEpisodeRuntime)) || (!b.imdbRating || b.imdbRating === "N/A");
       return false;
     });
-
     if (!needsEnrichment) return;
-
     const enrich = async () => {
       try {
-        // Concurrency limit to avoid blasting the APIs when a large number of bookmarks exist
         const concurrency = 6;
         const results = new Array(bookmarks.length);
         let nextIndex = 0;
-
         const worker = async () => {
           while (true) {
             if (cancelled) return;
             const i = nextIndex++;
             if (i >= bookmarks.length) return;
             const b = bookmarks[i];
-
             try {
               if (b.type === "movie") {
                 const details = await getMovieDetails(b.id).catch(() => null);
                 const runtime = Number.isFinite(details?.runtime) ? details.runtime : (Number.isFinite(b.runtime) ? b.runtime : 120);
-
                 let imdbRating = b.imdbRating;
                 if (!imdbRating || imdbRating === "N/A") {
                   try {
                     const imdbId = details?.external_ids?.imdb_id;
                     const year = details?.release_date ? String(new Date(details.release_date).getFullYear()) : b.year;
                     const omdbRating = await getIMDbRating({ imdbId, title: details?.title || b.title, year });
-                    if (omdbRating && omdbRating !== "N/A") {
-                      imdbRating = omdbRating;
-                    } else {
+                    if (omdbRating && omdbRating !== "N/A") imdbRating = omdbRating; else {
                       const tmdbRating = typeof details?.vote_average === 'number' ? String(details.vote_average.toFixed(1)) : undefined;
                       imdbRating = tmdbRating || (b.imdbRating || "N/A");
                     }
-                  } catch (e) {
+                  } catch {
                     const tmdbRating = typeof details?.vote_average === 'number' ? String(details.vote_average.toFixed(1)) : undefined;
                     imdbRating = tmdbRating || (b.imdbRating || "N/A");
                   }
                 }
-
                 results[i] = { ...b, runtime, imdbRating };
                 continue;
               }
-
               if (b.type === "tv") {
                 const details = await getTVDetails(b.id).catch(() => null);
-
-                let numEpisodes = null;
-                if (Number.isFinite(details?.number_of_episodes)) {
-                  numEpisodes = details.number_of_episodes;
-                } else if (Array.isArray(details?.seasons) && details.seasons.length > 0) {
-                  const sum = details.seasons.reduce((s, ss) => s + (Number.isFinite(ss?.episode_count) ? ss.episode_count : 0), 0);
-                  if (sum > 0) {
-                    numEpisodes = sum;
-                  }
-                }
-
+                let numEpisodes = Number.isFinite(details?.number_of_episodes) ? details.number_of_episodes : null;
                 if (!Number.isFinite(numEpisodes)) {
-                  if (Number.isFinite(b.episodes)) {
-                    numEpisodes = b.episodes;
-                  } else if (Number.isFinite(details?.number_of_seasons)) {
-                    numEpisodes = (details.number_of_seasons || 1) * 10;
-                  } else {
-                    numEpisodes = (b.seasons || 1) * 10;
+                  if (Array.isArray(details?.seasons) && details.seasons.length > 0) {
+                    const sum = details.seasons.reduce((s, ss) => s + (Number.isFinite(ss?.episode_count) ? ss.episode_count : 0), 0);
+                    if (sum > 0) numEpisodes = sum;
                   }
                 }
-
+                if (!Number.isFinite(numEpisodes)) {
+                  if (Number.isFinite(b.episodes)) numEpisodes = b.episodes; else if (Number.isFinite(details?.number_of_seasons)) numEpisodes = (details.number_of_seasons || 1) * 10; else numEpisodes = (b.seasons || 1) * 10;
+                }
                 let avgRuntime = undefined;
-                // Prefer TMDb explicit episode runtimes when available
                 if (Array.isArray(details?.episode_run_time) && details.episode_run_time.length > 0) {
                   const runs = details.episode_run_time.filter(Number.isFinite);
-                  if (runs.length > 0) avgRuntime = Math.round(runs.reduce((a, c) => a + c, 0) / runs.length);
+                  if (runs.length > 0) avgRuntime = Math.round(runs.reduce((a,c)=>a+c,0)/runs.length);
                 } else if (Number.isFinite(details?.episode_run_time)) {
                   avgRuntime = details.episode_run_time;
                 }
-
-                // If still not available, prefer any bookmark-provided avg
-                if (!Number.isFinite(avgRuntime) && Number.isFinite(b.averageEpisodeRuntime)) {
-                  avgRuntime = b.averageEpisodeRuntime;
-                }
-
-                // Keep original episode_run_time array for storing back to bookmark
-                const epRunArr = Array.isArray(details?.episode_run_time)
-                  ? details.episode_run_time
-                  : (Array.isArray(b.episode_run_time) ? b.episode_run_time : []);
-
-                // Build genres list
-                const genres = Array.isArray(details?.genres)
-                  ? details.genres.map((g) => String(g?.name || "").toLowerCase())
-                  : (Array.isArray(b.genres) ? b.genres.map((g) => String(g?.name || g || "").toLowerCase()) : []);
-
-                // Helper to detect streaming networks
-                const streamingProviders = ["netflix", "hulu", "amazon", "prime video", "prime", "disney+", "apple tv+", "hbomax", "paramount+", "peacock", "max"];
-                const networks = Array.isArray(details?.networks) ? details.networks.map(n => String(n?.name || '').toLowerCase()) : [];
-                const isStreaming = networks.some(n => streamingProviders.some(p => n.includes(p)));
-
-                const isAnime = genres.includes("anime") || (genres.includes("animation") && genres.includes("japanese"));
-                const isCartoon = genres.includes("animation") || genres.some(n => n.includes("cartoon") || n.includes("kids"));
-                const isComedy = genres.includes("comedy") || genres.includes("sitcom");
-                const isDrama = genres.includes("drama") || genres.includes("action") || genres.includes("thriller");
-
-                const calcAvgFromArray = (arr) => Math.round(arr.reduce((a, c) => a + c, 0) / arr.length);
-
-                if (!Number.isFinite(avgRuntime)) {
-                  // Short-form anime detection: if episode runtimes provided and all <= 15
-                  if (Array.isArray(details?.episode_run_time) && details.episode_run_time.length > 0) {
-                    const runs = details.episode_run_time.filter(Number.isFinite);
-                    if (runs.length > 0) {
-                      const maxRun = Math.max(...runs);
-                      const avgRun = calcAvgFromArray(runs);
-                      if (avgRun <= 15 || maxRun <= 15) {
-                        avgRuntime = 12; // short-form anime
-                      } else {
-                        avgRuntime = avgRun;
-                      }
-                    }
-                  } else if (isAnime) {
-                    avgRuntime = 24; // standard anime
-                  } else if (isCartoon) {
-                    avgRuntime = 24; // western cartoons
-                  } else if (isComedy) {
-                    avgRuntime = 24; // sitcom/comedy
-                  } else if (isDrama) {
-                    // Streaming drama gets longer runtime
-                    if (isStreaming) {
-                      avgRuntime = 55; // mid of 50-60
-                    } else {
-                      avgRuntime = 45;
-                    }
-                  } else if (Number.isFinite(b.episode_run_time)) {
-                    avgRuntime = b.episode_run_time;
-                  } else {
-                    avgRuntime = 45; // sensible fallback
-                  }
-                }
-
-                // Total runtime in minutes for the show
-                const totalMinutes = Number.isFinite(numEpisodes) && Number.isFinite(avgRuntime) ? (numEpisodes * avgRuntime) : null;
-
+                if (!Number.isFinite(avgRuntime) && Number.isFinite(b.averageEpisodeRuntime)) avgRuntime = b.averageEpisodeRuntime;
+                const epRunArr = Array.isArray(details?.episode_run_time) ? details.episode_run_time : (Array.isArray(b.episode_run_time) ? b.episode_run_time : []);
                 let imdbRating = b.imdbRating;
                 if (!imdbRating || imdbRating === "N/A") {
                   try {
                     const imdbId = details?.external_ids?.imdb_id;
                     const year = details?.first_air_date ? String(new Date(details.first_air_date).getFullYear()) : b.year;
                     const omdbRating = await getIMDbRating({ imdbId, title: details?.name || b.title, year });
-                    if (omdbRating && omdbRating !== "N/A") {
-                      imdbRating = omdbRating;
-                    }
-                  } catch (e) {
-                    // ignore and fallback later
-                  }
+                    if (omdbRating && omdbRating !== "N/A") imdbRating = omdbRating;
+                  } catch {}
                 }
-
                 const tmdbRating = typeof details?.vote_average === 'number' ? String(details.vote_average.toFixed(1)) : undefined;
-
-                results[i] = {
-                  ...b,
-                  genres: Array.isArray(details?.genres) ? details.genres : (Array.isArray(b.genres) ? b.genres : []),
-                  seasons: Number.isFinite(details?.number_of_seasons) ? details.number_of_seasons : (Array.isArray(details?.seasons) ? details.seasons.length : (Number.isFinite(b.seasons) ? b.seasons : undefined)),
-                  number_of_seasons: Number.isFinite(details?.number_of_seasons) ? details.number_of_seasons : undefined,
-                  episodes: numEpisodes,
-                  averageEpisodeRuntime: avgRuntime,
-                  episode_run_time: epRunArr,
-                  totalRuntimeMinutes: totalMinutes,
-                  imdbRating: (!imdbRating || imdbRating === "N/A") ? (tmdbRating || b.imdbRating || "N/A") : imdbRating,
-                };
-
+                const totalMinutes = Number.isFinite(numEpisodes) && Number.isFinite(avgRuntime) ? (numEpisodes * avgRuntime) : null;
+                results[i] = { ...b, episodes: numEpisodes, averageEpisodeRuntime: avgRuntime, episode_run_time: epRunArr, totalRuntimeMinutes, imdbRating: (!imdbRating || imdbRating === "N/A") ? (tmdbRating || b.imdbRating || "N/A") : imdbRating };
                 continue;
               }
-
-              // Unknown type - keep as is
               results[i] = b;
-            } catch (err) {
-              console.error('Error enriching item', b, err);
-              results[i] = b;
-            }
+            } catch { results[i] = b; }
           }
         };
-
         const workers = Array.from({ length: Math.min(concurrency, bookmarks.length) }).map(() => worker());
         await Promise.all(workers);
-
         if (!cancelled) {
           const updated = results;
           const changed = updated.some((u, i) => {
@@ -372,75 +240,40 @@ export default function Index() {
         console.error("Failed enriching bookmarks:", e);
       }
     };
-
     enrich();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [bookmarks]);
 
-
-
   const handleAddBookmark = (item) => {
-    // Check if item already exists
-    const exists = bookmarks.some(
-      (bookmark) => bookmark.id === item.id && bookmark.type === item.type,
-    );
-
+    const exists = bookmarks.some((bookmark) => bookmark.id === item.id && bookmark.type === item.type);
     if (!exists) {
       setBookmarks((prev) => {
-        const newItem = {
-          ...item,
-          franchise: undefined,
-          watchStatus: "unwatched",
-          addedAt: Date.now(),
-        };
+        const newItem = { ...item, franchise: undefined, watchStatus: "unwatched", addedAt: Date.now() };
         return [...prev, newItem];
       });
     }
   };
 
   const handleRemoveBookmark = (id, type) => {
-    setBookmarks((prev) =>
-      prev.filter((item) => !(item.id === id && item.type === type)),
-    );
+    setBookmarks((prev) => prev.filter((item) => !(item.id === id && item.type === type)));
   };
 
-  // Update a specific bookmark with a patch object
   const updateBookmark = (id, type, patch) => {
     setBookmarks((prev) => prev.map((b) => (b.id === id && b.type === type ? { ...b, ...patch } : b)));
   };
 
   const handleToggleWatchStatus = (id, type) => {
-    setBookmarks((prev) => {
-      return prev.map((item) => {
-        // Only update the specific item that was clicked
-        if (item.id === id && item.type === type) {
-          const newStatus = item.watchStatus === "watched" ? "unwatched" : "watched";
-          return { ...item, watchStatus: newStatus };
-        }
-        return item;
-      });
-    });
+    setBookmarks((prev) => prev.map((item) => (item.id === id && item.type === type ? { ...item, watchStatus: item.watchStatus === "watched" ? "unwatched" : "watched" } : item)));
   };
 
-  const handleCardClick = (item) => {
-    setSelectedItem(item);
-    setDialogOpen(true);
-  };
+  const handleCardClick = (item) => { setSelectedItem(item); setDialogOpen(true); };
 
   const handleRenameFranchise = (oldName, newName) => {
     const from = String(oldName || "").trim();
     const to = String(newName || "").trim();
     if (!from || !to || from === to) return;
     setBookmarks((prev) => prev.map((it) => (it.type === "movie" && String(it.franchise || "") === from ? { ...it, franchise: to } : it)));
-    setSelectedItem((prev) => {
-      if (prev && String(prev.franchise || "") === from) {
-        return { ...prev, franchise: to };
-      }
-      return prev;
-    });
+    setSelectedItem((prev) => (prev && String(prev.franchise || "") === from ? { ...prev, franchise: to } : prev));
   };
 
   const downloadBookmarks = () => {
@@ -484,10 +317,7 @@ export default function Index() {
                   addedAt: typeof it.addedAt === 'number' && Number.isFinite(it.addedAt) ? it.addedAt : (base + i),
                 };
                 if (type === 'movie') {
-                  return {
-                    ...common,
-                    runtime: Number.isFinite(Number(it.runtime)) ? Number(it.runtime) : 120,
-                  };
+                  return { ...common, runtime: Number.isFinite(Number(it.runtime)) ? Number(it.runtime) : 120 };
                 }
                 return {
                   ...common,
@@ -498,18 +328,15 @@ export default function Index() {
                 };
               });
             setBookmarks(normalized);
-            // Safety: close any open overlays/modals and reset selection to avoid stuck UI
             setDialogOpen(false);
             setShowFranchiseDialog(false);
             setSelectionMode(false);
             setSelectedKeys([]);
-            // Restore body scroll if any lock was left behind by an interrupted modal
             try {
               const prev = document.body.dataset._prevOverflow || '';
               document.body.style.overflow = prev;
               delete document.body.dataset._prevOverflow;
             } catch {}
-            // Notify child components (e.g., SearchBar) to close popovers and run global cleanup
             try { window.dispatchEvent(new CustomEvent('close-search-results')); } catch {}
             try { window.dispatchEvent(new CustomEvent('app:reset-ui')); } catch {}
           }
@@ -525,7 +352,6 @@ export default function Index() {
     }
   };
 
-  // Filter bookmarks based on watch status and type (movie/tv)
   const filteredBookmarks = bookmarks.filter(item => {
     if (watchFilter === "watched" && item.watchStatus !== "watched") return false;
     if (watchFilter === "unwatched" && item.watchStatus === "watched") return false;
@@ -537,73 +363,60 @@ export default function Index() {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
-      {/* Offline Banner */}
       <OfflineBanner />
 
-      {/* Background Image with Simple Blur */}
       {backgroundImage && (
         <div
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-          style={{
-            backgroundImage: `url(${backgroundImage})`,
-            filter: "blur(10px)",
-          }}
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-20"
+          style={{ backgroundImage: `url(${backgroundImage})`, filter: "blur(10px)" }}
         />
       )}
 
-      {/* Main Content */}
-      <div className="relative z-10 min-h-screen bg-background/90">
+      <div className="relative z-10 min-h-screen/90">
         <div className="container mx-auto px-4 py-8">
-          {/* Header - Only shown when no bookmarks */}
           {!hasBookmarks && (
-            <div className="text-center mb-16 mt-20">
-              <h1 className="text-5xl md:text-7xl font-bold mb-4 bg-gradient-to-r from-foreground via-primary to-foreground bg-clip-text text-transparent leading-tight">
-                only<span className="text-primary">series</span>.towatch
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, ease: [0.25,0.1,0.25,1] }}
+              className="text-center mb-16 mt-20"
+            >
+              <h1 className="text-5xl md:text-7xl font-bold mb-4 text-[hsl(var(--primary))] leading-tight">
+                only<span className="text-[hsl(var(--accent))]">series</span>.towatch
               </h1>
-              <p className="text-xl md:text-2xl text-muted-foreground">
+              <p className="text-xl md:text-2xl text-foreground/70">
                 Track, Bookmark & Watch Smarter
               </p>
-            </div>
+            </motion.div>
           )}
 
-          {/* Import/Export and Filter Controls - Fixed position */}
           <div className="fixed top-4 left-1/2 -translate-x-1/2 md:top-6 md:right-6 md:left-auto md:translate-x-0 z-50 flex gap-2 justify-center">
             <input ref={fileInputRef} type="file" accept=".json" onChange={uploadBookmarks} className="hidden" />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
-                  className={`p-2 md:p-3 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50 relative ${
-                    watchFilter === "all" ? "bg-card/80" :
-                    watchFilter === "watched" ? "bg-green-500/80" : "bg-blue-500/80"
-                  }`}
+                <motion.button
+                  whileHover={{ scale: 1.06 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`btn-tertiary p-2 md:p-3 relative`}
                   title="Filter watchlist"
                 >
                   <Filter className="w-4 h-4 md:w-5 md:h-5" />
                   {watchFilter !== "all" && (
-                    <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-primary"></div>
+                    <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-[hsl(var(--accent))]"></div>
                   )}
-                </button>
+                </motion.button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem
-                  onClick={() => setWatchFilter("all")}
-                  className={watchFilter === "all" ? "bg-accent" : ""}
-                >
+              <DropdownMenuContent align="end" className="w-40 glass-panel">
+                <DropdownMenuItem onClick={() => setWatchFilter("all")} className={watchFilter === "all" ? "bg-[hsla(var(--gold)/0.2)]" : ""}>
                   <Filter className="w-4 h-4" />
                   All Items
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setWatchFilter("unwatched")}
-                  className={watchFilter === "unwatched" ? "bg-blue-500/20 text-blue-400" : ""}
-                >
-                  <Eye className="w-4 h-4 text-blue-400" />
+                <DropdownMenuItem onClick={() => setWatchFilter("unwatched")} className={watchFilter === "unwatched" ? "bg-[hsla(var(--gold)/0.2)]" : ""}>
+                  <Eye className="w-4 h-4" />
                   Will Watch
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setWatchFilter("watched")}
-                  className={watchFilter === "watched" ? "bg-green-500/20 text-green-400" : ""}
-                >
-                  <EyeOff className="w-4 h-4 text-green-400" />
+                <DropdownMenuItem onClick={() => setWatchFilter("watched")} className={watchFilter === "watched" ? "bg-[hsla(var(--gold)/0.2)]" : ""}>
+                  <EyeOff className="w-4 h-4" />
                   Watched
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -611,108 +424,55 @@ export default function Index() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
-                  className={`p-2 md:p-3 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50 relative ${
-                    typeFilter === "all" ? "bg-card/80" : typeFilter === "movie" ? "bg-blue-500/80" : "bg-purple-500/80"
-                  }`}
-                  title="Filter type"
-                >
+                <motion.button whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.98 }} className={`btn-tertiary p-2 md:p-3 relative`} title="Filter type">
                   <Tv className="w-4 h-4 md:w-5 md:h-5" />
-                  {typeFilter !== "all" && (
-                    <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-primary"></div>
-                  )}
-                </button>
+                  {typeFilter !== "all" && <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-[hsl(var(--accent))]"></div>}
+                </motion.button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem onClick={() => setTypeFilter("all")} className={typeFilter === "all" ? "bg-accent" : ""}>
-                  All
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTypeFilter("movie")} className={typeFilter === "movie" ? "bg-blue-500/20 text-blue-400" : ""}>
-                  Movies
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTypeFilter("tv")} className={typeFilter === "tv" ? "bg-purple-500/20 text-purple-400" : ""}>
-                  Series
-                </DropdownMenuItem>
+              <DropdownMenuContent align="end" className="w-40 glass-panel">
+                <DropdownMenuItem onClick={() => setTypeFilter("all")} className={typeFilter === "all" ? "bg-[hsla(var(--gold)/0.2)]" : ""}>All</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTypeFilter("movie")} className={typeFilter === "movie" ? "bg-[hsla(var(--gold)/0.2)]" : ""}>Movies</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTypeFilter("tv")} className={typeFilter === "tv" ? "bg-[hsla(var(--gold)/0.2)]" : ""}>Series</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
-                  className="p-2 md:p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50"
-                  title="Sort"
-                >
+                <motion.button whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.98 }} className="btn-tertiary p-2 md:p-3" title="Sort">
                   <ArrowUpDown className="w-4 h-4 md:w-5 md:h-5" />
-                </button>
+                </motion.button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem onClick={() => setSortType("alpha_asc")} className={sortType === "alpha_asc" ? "bg-accent" : ""}>
-                  A → Z (Title)
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSortType("alpha_desc")} className={sortType === "alpha_desc" ? "bg-accent" : ""}>
-                  Z → A (Title)
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSortType("time_asc")} className={sortType === "time_asc" ? "bg-accent" : ""}>
-                  Time added: First → Last
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSortType("time_desc")} className={sortType === "time_desc" ? "bg-accent" : ""}>
-                  Time added: Last → First
-                </DropdownMenuItem>
+              <DropdownMenuContent align="end" className="w-56 glass-panel">
+                <DropdownMenuItem onClick={() => setSortType("alpha_asc")} className={sortType === "alpha_asc" ? "bg-[hsla(var(--gold)/0.2)]" : ""}>A → Z (Title)</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSortType("alpha_desc")} className={sortType === "alpha_desc" ? "bg-[hsla(var(--gold)/0.2)]" : ""}>Z → A (Title)</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSortType("time_asc")} className={sortType === "time_asc" ? "bg-[hsla(var(--gold)/0.2)]" : ""}>Time added: First → Last</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSortType("time_desc")} className={sortType === "time_desc" ? "bg-[hsla(var(--gold)/0.2)]" : ""}>Time added: Last → First</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
-                  className="p-2 md:p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50"
-                  title="More"
-                >
+                <motion.button whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.98 }} className="btn-tertiary p-2 md:p-3" title="More">
                   <MoreHorizontal className="w-4 h-4 md:w-5 md:h-5" />
-                </button>
+                </motion.button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem
-                  onClick={async () => {
-                    try {
-                      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
-                        await navigator.clipboard.writeText(window.location.href);
-                      } else {
-                        const tmp = document.createElement('input');
-                        tmp.value = window.location.href;
-                        document.body.appendChild(tmp);
-                        tmp.select();
-                        document.execCommand('copy');
-                        document.body.removeChild(tmp);
-                      }
-                      setShareToast(true);
-                      setTimeout(() => setShareToast(false), 3000);
-                    } catch (e) {
-                      console.warn('Failed to copy URL to clipboard', e);
-                      try { window.prompt('Copy URL', window.location.href); } catch {}
+              <DropdownMenuContent align="end" className="w-56 glass-panel">
+                <DropdownMenuItem onClick={async () => {
+                  try {
+                    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+                      await navigator.clipboard.writeText(window.location.href);
+                    } else {
+                      const tmp = document.createElement('input'); tmp.value = window.location.href; document.body.appendChild(tmp); tmp.select(); document.execCommand('copy'); document.body.removeChild(tmp);
                     }
-                  }}
-                >
-                  Share Website
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={downloadBookmarks} className={!hasBookmarks ? "opacity-50" : ""}>
-                  Download Bookmarks
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    if (fileInputRef.current) fileInputRef.current.click();
-                  }}
-                >
-                  Upload Bookmarks
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowResetConfirm(true)}>
-                  Reset All
-                </DropdownMenuItem>
+                    setShareToast(true); setTimeout(() => setShareToast(false), 3000);
+                  } catch (e) { try { window.prompt('Copy URL', window.location.href); } catch {} }
+                }}>Share Website</DropdownMenuItem>
+                <DropdownMenuItem onClick={downloadBookmarks} className={!hasBookmarks ? "opacity-50" : ""}>Download Bookmarks</DropdownMenuItem>
+                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); if (fileInputRef.current) fileInputRef.current.click(); }}>Upload Bookmarks</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowResetConfirm(true)}>Reset All</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Themed reset confirmation dialog */}
             {showResetConfirm && (
               <ConfirmDialog
                 isOpen={showResetConfirm}
@@ -722,8 +482,6 @@ export default function Index() {
                 cancelText="Cancel"
                 onCancel={() => setShowResetConfirm(false)}
                 onConfirm={() => {
-
-                  // Reset UI state
                   setBookmarks([]);
                   setBackgroundImage("");
                   setSelectedItem(null);
@@ -737,7 +495,6 @@ export default function Index() {
                   setFranchiseName("");
                   setFranchiseFilter("");
                   setMissingRatings([]);
-
                   setShowResetConfirm(false);
                   window.scrollTo({ top: 0, behavior: "smooth" });
                 }}
@@ -745,7 +502,6 @@ export default function Index() {
             )}
           </div>
 
-          {/* Search Bar */}
           <div className={`mb-12 ${!hasBookmarks ? "" : "mt-8"}`}>
             <SearchBar
               onAddBookmark={handleAddBookmark}
@@ -753,9 +509,7 @@ export default function Index() {
               bookmarks={bookmarks}
               onBulkFranchise={(movies) => {
                 try {
-                  const keys = Array.isArray(movies)
-                    ? movies.map((m) => `${m.type}-${m.id}`)
-                    : [];
+                  const keys = Array.isArray(movies) ? movies.map((m) => `${m.type}-${m.id}`) : [];
                   if (keys.length === 0) return;
                   setSelectionMode(true);
                   setSelectedKeys(keys);
@@ -766,57 +520,30 @@ export default function Index() {
             />
           </div>
 
-          {/* Timer - Only shown when there are bookmarks */}
           {hasBookmarks && (
             <div className="text-center mb-12">
               <Timer bookmarks={bookmarks} watchFilter={watchFilter} typeFilter={typeFilter} />
             </div>
           )}
 
-          {/* Franchise Builder Controls */}
           {hasBookmarks && (
             <div className="mb-6 px-4 flex items-center gap-2 sm:gap-3 justify-center flex-wrap">
               {!selectionMode ? (
-                <button
-                  onClick={() => {
-                    setSelectionMode(true);
-                    setSelectedKeys([]);
-                  }}
-                  className="px-4 py-2 rounded-md bg-card border border-border text-foreground hover:bg-card/80 transition-colors"
-                >
+                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => { setSelectionMode(true); setSelectedKeys([]); }} className="btn-tertiary px-4 py-2">
                   Select Movies
-                </button>
+                </motion.button>
               ) : (
                 <>
-                  <button
-                    onClick={() => {
-                      setSelectionMode(false);
-                      setSelectedKeys([]);
-                    }}
-                    className="px-4 py-2 rounded-md bg-card border border-border text-foreground hover:bg-card/80 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => setSelectedKeys([])}
-                    className="px-4 py-2 rounded-md bg-card border border-border text-foreground hover:bg-card/80 transition-colors"
-                  >
-                    Clear Selection
-                  </button>
-                  <button
-                    disabled={selectedKeys.length < 1}
-                    onClick={() => setShowFranchiseDialog(true)}
-                    className="px-4 py-2 rounded-md bg-primary text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={selectedKeys.length < 1 ? "Select at least 1 movie" : "Create or add to franchise"}
-                  >
+                  <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => { setSelectionMode(false); setSelectedKeys([]); }} className="btn-tertiary px-4 py-2">Cancel</motion.button>
+                  <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => setSelectedKeys([])} className="btn-tertiary px-4 py-2">Clear Selection</motion.button>
+                  <motion.button disabled={selectedKeys.length < 1} whileHover={{ scale: selectedKeys.length < 1 ? 1 : 1.03 }} whileTap={{ scale: selectedKeys.length < 1 ? 1 : 0.98 }} onClick={() => setShowFranchiseDialog(true)} className="btn-primary px-4 py-2" title={selectedKeys.length < 1 ? "Select at least 1 movie" : "Create or add to franchise"}>
                     Group as Franchise
-                  </button>
+                  </motion.button>
                 </>
               )}
             </div>
           )}
 
-          {/* Bookmarks Grid - Center-aligned */}
           {hasBookmarks ? (
             <div className="flex justify-center">
               <div className="max-w-7xl w-full">
@@ -832,20 +559,15 @@ export default function Index() {
                   onToggleSelect={(item) => {
                     if (item.type !== "movie") return;
                     const key = `${item.type}-${item.id}`;
-                    setSelectedKeys((prev) =>
-                      prev.includes(key)
-                        ? prev.filter((k) => k !== key)
-                        : [...prev, key]
-                    );
+                    setSelectedKeys((prev) => prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]);
                   }}
                 />
               </div>
             </div>
           ) : null}
 
-          {/* Missing ratings panel */}
           {missingRatings && missingRatings.length > 0 && (
-            <div className="fixed left-4 bottom-4 z-50 w-80 bg-card/95 border border-border rounded-lg p-3 shadow-2xl">
+            <div className="fixed left-4 bottom-4 z-50 glass-panel w-80">
               <div className="flex justify-between items-center mb-2">
                 <div className="font-semibold">Missing IMDb Ratings</div>
                 <button onClick={() => setMissingRatings([])} className="text-sm text-muted-foreground">Close</button>
@@ -856,128 +578,48 @@ export default function Index() {
                 ))}
               </div>
               <div className="flex gap-2">
-                <button
-                  onClick={async () => {
-                    setFetchingRatings(true);
-                    try {
-                      const updated = [...bookmarks];
-                      for (const m of missingRatings) {
-                        const idx = updated.findIndex((b) => b.id === m.id && b.type === m.type);
-                        if (idx === -1) continue;
-                        try {
-                          if (m.type === "movie") {
-                            const details = await getMovieDetails(m.id).catch(() => null);
-                            const imdbId = details?.external_ids?.imdb_id;
-                            const year = details?.release_date ? new Date(details.release_date).getFullYear().toString() : undefined;
-                            const omdbRating = await getIMDbRating({ imdbId, title: details?.title || m.title, year });
-                            if (omdbRating && omdbRating !== "N/A") {
-                              updated[idx] = { ...updated[idx], imdbRating: omdbRating };
-                            }
-                          } else {
-                            const details = await getTVDetails(m.id).catch(() => null);
-                            const imdbId = details?.external_ids?.imdb_id;
-                            const year = details?.first_air_date ? new Date(details.first_air_date).getFullYear().toString() : undefined;
-                            const omdbRating = await getIMDbRating({ imdbId, title: details?.name || m.title, year });
-                            if (omdbRating && omdbRating !== "N/A") {
-                              updated[idx] = { ...updated[idx], imdbRating: omdbRating };
-                            }
-                          }
-                        } catch (err) {
-                          // ignore per-item errors
-                        }
-                      }
-                      setBookmarks(updated);
-                      const missing = updated.filter((b) => !b.imdbRating || b.imdbRating === "N/A").map((b) => ({ id: b.id, title: b.title, type: b.type }));
-                      setMissingRatings(missing);
-                    } finally {
-                      setFetchingRatings(false);
-                    }
-                  }}
-                  className="px-3 py-1 rounded-md bg-primary text-primary-foreground disabled:opacity-50"
-                >
-                  {fetchingRatings ? "Fetching..." : "Fetch Now"}
-                </button>
-
-                <button onClick={() => { setMissingRatings([]); }} className="px-3 py-1 rounded-md bg-card border border-border">Dismiss</button>
+                <button onClick={async () => { setFetchingRatings(true); try { const updated = [...bookmarks]; for (const m of missingRatings) { const idx = updated.findIndex((b) => b.id === m.id && b.type === m.type); if (idx === -1) continue; try { if (m.type === "movie") { const details = await getMovieDetails(m.id).catch(() => null); const imdbId = details?.external_ids?.imdb_id; const year = details?.release_date ? new Date(details.release_date).getFullYear().toString() : undefined; const omdbRating = await getIMDbRating({ imdbId, title: details?.title || m.title, year }); if (omdbRating && omdbRating !== "N/A") updated[idx] = { ...updated[idx], imdbRating: omdbRating }; } else { const details = await getTVDetails(m.id).catch(() => null); const imdbId = details?.external_ids?.imdb_id; const year = details?.first_air_date ? new Date(details.first_air_date).getFullYear().toString() : undefined; const omdbRating = await getIMDbRating({ imdbId, title: details?.name || m.title, year }); if (omdbRating && omdbRating !== "N/A") updated[idx] = { ...updated[idx], imdbRating: omdbRating }; } } catch {} } setBookmarks(updated); const missing = updated.filter((b) => !b.imdbRating || b.imdbRating === "N/A").map((b) => ({ id: b.id, title: b.title, type: b.type })); setMissingRatings(missing); } finally { setFetchingRatings(false); } }} className="btn-primary px-3 py-1 disabled:opacity-50">{fetchingRatings ? "Fetching..." : "Fetch Now"}</button>
+                <button onClick={() => { setMissingRatings([]); }} className="btn-tertiary px-3 py-1">Dismiss</button>
               </div>
             </div>
           )}
 
-          {/* Dialog Box */}
           <DialogBox
             item={selectedItem}
             isOpen={dialogOpen}
             onClose={() => setDialogOpen(false)}
             onRemove={handleRemoveBookmark}
             onToggleWatchStatus={handleToggleWatchStatus}
-            franchiseMovies={
-              selectedItem?.franchise
-                ? bookmarks.filter(
-                    (b) => b.franchise === selectedItem.franchise,
-                  )
-                : undefined
-            }
+            franchiseMovies={selectedItem?.franchise ? bookmarks.filter((b) => b.franchise === selectedItem.franchise) : undefined}
             onRenameFranchise={handleRenameFranchise}
             onUpdateBookmark={updateBookmark}
           />
         </div>
       </div>
 
-      {/* Share Toast Notification */}
       {shareToast && (
-        <div className="fixed bottom-6 right-6 z-50 bg-card/95 backdrop-blur-md border border-border/50 rounded-xl p-4 shadow-2xl animate-in slide-in-from-bottom-2">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="fixed bottom-6 right-6 z-50 glass-panel">
           <div className="flex items-center gap-2 text-sm text-foreground">
-            <div className="w-2 h-2 rounded-full bg-primary"></div>
+            <div className="w-2 h-2 rounded-full bg-[hsl(var(--mint))]"></div>
             <span>URL copied to clipboard!</span>
           </div>
-        </div>
+        </motion.div>
       )}
 
-      {/* Franchise Name Dialog */}
       {showFranchiseDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setShowFranchiseDialog(false)} />
-          <div className="relative w-full max-w-2xl bg-card/95 backdrop-blur-md border border-border/50 rounded-2xl p-6 shadow-2xl">
-            <input
-              value={franchiseFilter}
-              onChange={(e) => setFranchiseFilter(e.target.value)}
-              placeholder="Search or add franchise..."
-              className="w-full mb-3 px-3 py-2 rounded-md bg-background border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              autoFocus
-            />
-
-            <div className="max-h-72 overflow-y-auto rounded-md border border-border/40 p-2 bg-background/60">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setShowFranchiseDialog(false)} />
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="relative w-full max-w-2xl glass-panel">
+            <input value={franchiseFilter} onChange={(e) => setFranchiseFilter(e.target.value)} placeholder="Search or add franchise..." className="glass-input mb-3" autoFocus />
+            <div className="max-h-72 overflow-y-auto rounded-md p-2 bg-background/40 border border-border/40">
               {franchiseFilter.trim().length >= 2 ? (
                 franchiseCounts.filter(({ name }) => name.toLowerCase().includes(franchiseFilter.trim().toLowerCase())).length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {franchiseCounts
-                      .filter(({ name }) => name.toLowerCase().includes(franchiseFilter.trim().toLowerCase()))
-                      .map(({ name }) => (
-                        <button
-                          key={name}
-                          onClick={() => {
-                            const selectedName = name;
-                            // apply franchise to selected movies
-                            setBookmarks((prev) =>
-                              prev.map((it) => {
-                                const key = `${it.type}-${it.id}`;
-                                if (it.type === "movie" && selectedKeys.includes(key)) {
-                                  return { ...it, franchise: selectedName };
-                                }
-                                return it;
-                              })
-                            );
-                            setFranchiseFilter("");
-                            setSelectedKeys([]);
-                            setSelectionMode(false);
-                            setShowFranchiseDialog(false);
-                          }}
-                          className="w-full text-left px-3 py-2 rounded-md bg-card/60 border border-border text-foreground hover:bg-card"
-                          title={name}
-                        >
-                          {name}
-                        </button>
-                      ))}
+                    {franchiseCounts.filter(({ name }) => name.toLowerCase().includes(franchiseFilter.trim().toLowerCase())).map(({ name }) => (
+                      <button key={name} onClick={() => { const selectedName = name; setBookmarks((prev) => prev.map((it) => { const key = `${it.type}-${it.id}`; if (it.type === "movie" && selectedKeys.includes(key)) { return { ...it, franchise: selectedName }; } return it; })); setFranchiseFilter(""); setSelectedKeys([]); setSelectionMode(false); setShowFranchiseDialog(false); }} className="w-full text-left px-3 py-2 rounded-md bg-background/40 border border-border/60 hover:bg-background/60" title={name}>
+                        {name}
+                      </button>
+                    ))}
                   </div>
                 ) : (
                   <div className="text-sm text-muted-foreground">No franchises found.</div>
@@ -986,40 +628,13 @@ export default function Index() {
                 <div className="text-sm text-muted-foreground">Type at least 2 characters to search</div>
               )}
             </div>
-
             <div className="flex justify-end gap-2 mt-3">
-              <button
-                onClick={() => setShowFranchiseDialog(false)}
-                className="px-4 py-2 rounded-md bg-card border border-border text-foreground hover:bg-card/80 transition-colors"
-              >
-                Cancel
-              </button>
-
+              <button onClick={() => setShowFranchiseDialog(false)} className="btn-tertiary px-4 py-2">Cancel</button>
               {franchiseFilter.trim().length >= 2 && (
-                <button
-                  onClick={() => {
-                    const name = franchiseFilter.trim();
-                    setBookmarks((prev) =>
-                      prev.map((it) => {
-                        const key = `${it.type}-${it.id}`;
-                        if (it.type === "movie" && selectedKeys.includes(key)) {
-                          return { ...it, franchise: name };
-                        }
-                        return it;
-                      })
-                    );
-                    setFranchiseFilter("");
-                    setSelectedKeys([]);
-                    setSelectionMode(false);
-                    setShowFranchiseDialog(false);
-                  }}
-                  className="px-4 py-2 rounded-md bg-primary text-primary-foreground"
-                >
-                  Add "{franchiseFilter.trim()}"
-                </button>
+                <button onClick={() => { const name = franchiseFilter.trim(); setBookmarks((prev) => prev.map((it) => { const key = `${it.type}-${it.id}`; if (it.type === "movie" && selectedKeys.includes(key)) { return { ...it, franchise: name }; } return it; })); setFranchiseFilter(""); setSelectedKeys([]); setSelectionMode(false); setShowFranchiseDialog(false); }} className="btn-primary px-4 py-2">Add "{franchiseFilter.trim()}"</button>
               )}
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
       <ScrollToTop />
