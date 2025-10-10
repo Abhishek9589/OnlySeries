@@ -9,15 +9,13 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     fs: {
-      allow: ["..", "./shared"],
+      allow: ["./client", "./shared"],
       deny: [".env", ".env.*", "*.{crt,pem}", "**/.git/**", "server/**"],
     },
   },
-  root: "client",
   build: {
-    outDir: "../dist/spa",
+    outDir: "dist/spa",
   },
-  publicDir: "../public",
   plugins: [react(), expressPlugin()],
   resolve: {
     alias: {
