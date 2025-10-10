@@ -348,25 +348,17 @@ function PaginationControlsBar({
           </button>
         </div>
         <div className="hidden md:flex justify-end items-center gap-2">
-          <button
-            onClick={() => setExpanded((v) => !v)}
-            className="p-2 rounded-full bg-card border border-border text-foreground hover:bg-card/80 transition-colors"
-            aria-label={expanded ? "Collapse search" : "Expand search"}
-            title={expanded ? "Collapse search" : "Expand search"}
-          >
-            <Search className="w-4 h-4" />
-          </button>
-          <div className={`relative transition-all duration-200 ${expanded ? "w-64 sm:w-80" : "w-0"}`}>
-            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4 ${expanded ? "opacity-100" : "opacity-0"}`} />
+                    <div className={`relative transition-all duration-200 w-0`}>
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4 opacity-0`} />
             <input
               ref={inputRef}
               value={localSearch}
               onChange={(e) => setLocalSearch(e.target.value)}
               placeholder="Search your list..."
-              tabIndex={expanded ? 0 : -1}
-              className={`w-full ${expanded ? "pl-9 pr-9 py-2 sm:py-2.5 border border-border/70" : "p-0 border-0"} bg-card/80 backdrop-blur-sm rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary transition-all shadow-lg text-foreground`}
+              tabIndex={-1}
+              className={`w-full p-0 border-0 bg-card/80 backdrop-blur-sm rounded-2xl focus:outline-none transition-all shadow-lg text-foreground`}
             />
-            {expanded && localSearch && (
+            {false && localSearch && (
               <button
                 onClick={() => setLocalSearch("")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted-foreground hover:text-foreground"
@@ -376,7 +368,7 @@ function PaginationControlsBar({
               </button>
             )}
 
-            {expanded && searchQ && (
+            {false && searchQ && (
               <div className="absolute z-50 left-0 right-0 mt-2 max-h-72 overflow-y-auto custom-scrollbar bg-card/95 backdrop-blur-md border border-border/50 rounded-xl shadow-2xl">
                 {searchResults.length === 0 ? (
                   <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
