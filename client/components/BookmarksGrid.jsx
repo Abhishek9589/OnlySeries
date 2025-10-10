@@ -441,30 +441,6 @@ export default function BookmarksGrid({
   const [pageInput, setPageInput] = useState("1");
   const [localSearch, setLocalSearch] = useState("");
 
-  useEffect(() => {
-    // Animate new cards entering from center
-    if (gridRef.current && bookmarks.length > 0) {
-      const cards = Array.from(gridRef.current.children);
-      const newCards = cards.slice(-1); // Get the last added card
-
-      if (newCards.length > 0) {
-        // Prevent scroll issues by using a more stable animation
-        gsap.fromTo(
-          newCards,
-          {
-            scale: 0.8,
-            opacity: 0,
-          },
-          {
-            scale: 1,
-            opacity: 1,
-            duration: 0.3,
-            ease: "power2.out",
-          },
-        );
-      }
-    }
-  }, [bookmarks.length]);
 
   const formatWatchTime = (item) => {
     if (item.type === "movie") {
