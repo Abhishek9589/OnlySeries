@@ -1,6 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { X, Clock, Star, Film, Tv, Calendar, Eye, Check, EyeOff, Pencil } from "lucide-react";
-import { gsap } from "gsap";
 import { useIsMobile } from "../hooks/use-mobile";
 import { getMovieDetails, getIMDbRating } from "../lib/api";
 
@@ -93,27 +92,9 @@ export default function DialogBox({
   onRenameFranchise,
   onUpdateBookmark,
 }) {
-  const dialogRef = useRef(null);
-  const overlayRef = useRef(null);
   const isMobile = useIsMobile();
   const [editingFranchise, setEditingFranchise] = useState(false);
   const [newFranchiseName, setNewFranchiseName] = useState("");
-
-  useEffect(() => {
-    if (isOpen && dialogRef.current && overlayRef.current) {
-      // Animate dialog in
-      gsap.fromTo(
-        overlayRef.current,
-        { opacity: 0 },
-        { opacity: 1, duration: 0.3 },
-      );
-      gsap.fromTo(
-        dialogRef.current,
-        { scale: 0.9, opacity: 0, y: 20 },
-        { scale: 1, opacity: 1, y: 0, duration: 0.4, ease: "power2.out" },
-      );
-    }
-  }, [isOpen]);
 
   useEffect(() => {
     if (item && item.franchise) {
@@ -127,18 +108,7 @@ export default function DialogBox({
 
 
   const handleClose = () => {
-    if (dialogRef.current && overlayRef.current) {
-      gsap.to(overlayRef.current, { opacity: 0, duration: 0.2 });
-      gsap.to(dialogRef.current, {
-        scale: 0.9,
-        opacity: 0,
-        y: 20,
-        duration: 0.3,
-        onComplete: onClose,
-      });
-    } else {
-      onClose();
-    }
+    onClose();
   };
 
   const handleSaveRename = () => {
@@ -173,12 +143,10 @@ export default function DialogBox({
 
   return (
     <div
-      ref={overlayRef}
       className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto"
       onClick={handleClose}
     >
       <div
-        ref={dialogRef}
         className={
           isCompactMobileMovie
             ? "bg-card/95 backdrop-blur-md border border-border/50 rounded-2xl w-[calc(100%-2rem)] max-w-sm max-h-[calc(100vh-2rem)] overflow-y-auto shadow-2xl"
