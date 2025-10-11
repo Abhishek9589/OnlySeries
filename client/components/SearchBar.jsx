@@ -474,27 +474,18 @@ const SearchBar = memo(function SearchBar({
 
   return (
     <div className="w-[98%] max-w-[800px] mx-auto relative">
-      <div className="flex items-end justify-between w-full">
+      <div className="w-full">
         <input
           id="tiii-like-input"
           type="text"
-          aria-label="Type-in a TV show"
-          placeholder="Type-in a TV show"
+          aria-label="Search for a movie or series"
+          placeholder="Search for a movie or series..."
           value={searchTerm}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           onChange={(e) => { setSearchTerm(e.target.value); setVisibleCount(10); }}
-          className={`${isFocused ? 'text-white placeholder:text-white/20' : 'text-[#febd17] placeholder:text-[#febd17]'} bg-transparent border-0 outline-none shadow-none block h-[2em] w-[530px] max-w-full px-[2%] font-extralight transition-colors duration-200 text-[4em]`}
+          className={`${isFocused ? 'text-foreground placeholder:text-foreground/30' : 'text-primary placeholder:text-primary/70'} caret-primary bg-transparent border-0 outline-none shadow-none block h-[2em] w-full px-2 font-extralight transition-colors duration-200 text-[2.5rem] sm:text-[3rem] md:text-[3.5rem]`}
         />
-        <button
-          type="button"
-          onClick={() => { try { document.getElementById('tiii-like-input')?.focus(); } catch {} }}
-          className="text-[#febd17] bg-transparent border-0 outline-none p-0 m-0 leading-none cursor-pointer text-[5em] hover:opacity-90 transition-opacity"
-          title="Add this TV show (Enter)"
-          aria-label="Add"
-        >
-          ➜
-        </button>
       </div>
 
       {showResults && (
