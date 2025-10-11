@@ -48,7 +48,7 @@ function FranchiseMovieCard({ movie, onRemove, onUpdateBookmark, formatWatchTime
 
   return (
     <div className="group relative">
-      <div className="aspect-[2/3] rounded-xl overflow-hidden bg-card border border-border/30 shadow-lg transition-all duration-300 group-hover:scale-105">
+      <div className="aspect-[2/3] rounded-none overflow-hidden bg-card transition-all duration-300 group-hover:scale-105">
         <img src={movie.poster} alt={movie.title} className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
           {onRemove && (
@@ -163,7 +163,7 @@ export default function DialogBox({
                 ? "bg-card/95 backdrop-blur-md border border-border/50 rounded-2xl w-[calc(100%-2rem)] max-w-sm max-h-[calc(100vh-2rem)] overflow-y-auto shadow-2xl"
                 : isCompactDesktopMovie
                 ? "bg-card/95 backdrop-blur-md border border-border/50 rounded-2xl w-[680px] max-w-[calc(100%-4rem)] max-h-[90vh] overflow-y-auto shadow-2xl"
-                : "bg-card/95 backdrop-blur-md border border-border/50 rounded-3xl max-w-6xl max-h-[90vh] overflow-y-auto shadow-2xl"
+                : "bg-card/95 backdrop-blur-md border border-border/50 rounded-3xl max-w-[1600px] max-h-[90vh] overflow-y-auto shadow-2xl"
             }
             onClick={(e) => e.stopPropagation()}
           >
@@ -450,7 +450,7 @@ export default function DialogBox({
                   {/* Franchise Dialog */}
                   {item.franchise && franchiseMovies && (
                     <div className="space-y-6">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-0 justify-items-stretch items-stretch">
                         {franchiseMovies
                           .sort((a, b) => parseInt(a.year) - parseInt(b.year))
                           .map((movie) => (

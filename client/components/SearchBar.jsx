@@ -575,8 +575,8 @@ const SearchBar = memo(function SearchBar({
                         src={item.poster}
                         alt={item.title}
                         type={item.type}
-                        className="w-12 h-18 object-cover rounded-lg shadow-md"
-                        fallbackClassName="w-12 h-18 rounded-lg text-xs"
+                        className="w-12 h-[72px] object-cover rounded-lg shadow-md"
+                        fallbackClassName="w-12 h-[72px] rounded-lg text-xs"
                       />
                       <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg" />
                     </div>

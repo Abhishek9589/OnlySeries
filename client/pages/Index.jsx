@@ -819,7 +819,7 @@ export default function Index() {
           {/* Bookmarks Grid - Center-aligned */}
           {hasBookmarks ? (
             <div className="flex justify-center">
-              <div className="max-w-7xl w-full">
+              <div className="max-w-[1600px] w-full">
                 <BookmarksGrid
                   bookmarks={filteredBookmarks}
                   sortType={sortType}
