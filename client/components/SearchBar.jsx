@@ -34,6 +34,7 @@ const SearchBar = memo(function SearchBar({
   const [selectedKeys, setSelectedKeys] = useState([]);
   const [verifiedRatings, setVerifiedRatings] = useState({});
   const isOffline = useOffline();
+  const [isFocused, setIsFocused] = useState(false);
 
   // Refs to avoid stale closures in async handlers
   const bookmarksRef = useRef(bookmarks);
@@ -472,25 +473,28 @@ const SearchBar = memo(function SearchBar({
   if (!isVisible) return null;
 
   return (
-    <div className="w-full max-w-2xl mx-auto relative">
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
+    <div className="w-[98%] max-w-[800px] mx-auto relative">
+      <div className="flex items-end justify-between w-full">
         <input
+          id="tiii-like-input"
           type="text"
-          aria-label="Search for a movie or series"
-          placeholder="Search for a movie or series..."
+          aria-label="Type-in a TV show"
+          placeholder="Type-in a TV show"
           value={searchTerm}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
           onChange={(e) => { setSearchTerm(e.target.value); setVisibleCount(10); }}
-          className="w-full pl-12 pr-12 py-3 sm:py-4 text-base sm:text-lg bg-card/80 backdrop-blur-sm border border-border/50 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary transition-all shadow-lg"
+          className={`${isFocused ? 'text-white placeholder:text-white/20' : 'text-[#febd17] placeholder:text-[#febd17]'} bg-transparent border-0 outline-none shadow-none block h-[2em] w-[530px] max-w-full px-[2%] font-extralight transition-colors duration-200 text-[4em]`}
         />
-        {searchTerm && (
-          <button
-            onClick={clearSearch}
-            className="absolute right-4 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => { try { document.getElementById('tiii-like-input')?.focus(); } catch {} }}
+          className="text-[#febd17] bg-transparent border-0 outline-none p-0 m-0 leading-none cursor-pointer text-[5em] hover:opacity-90 transition-opacity"
+          title="Add this TV show (Enter)"
+          aria-label="Add"
+        >
+          ➜
+        </button>
       </div>
 
       {showResults && (
