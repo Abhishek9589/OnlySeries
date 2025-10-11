@@ -565,26 +565,15 @@ const SearchBar = memo(function SearchBar({
                     }}
                     className={`flex items-center p-4 cursor-pointer transition-colors group ${bulkMode && isSelected(item) ? 'bg-primary/15' : 'hover:bg-accent/20'}`}
                   >
-                    <div className="relative mr-4">
-                      <FallbackImage
-                        src={item.poster}
-                        alt={item.title}
-                        type={item.type}
-                        className="w-12 h-[72px] object-cover rounded-lg shadow-md"
-                        fallbackClassName="w-12 h-[72px] rounded-lg text-xs"
-                      />
-                      <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg" />
-                    </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-foreground truncate group-hover:text-primary transition-colors">
-                        {item.title}
-                      </h3>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        {item.year && <span className="px-2 py-0.5 rounded-full border border-border/50 bg-background/40">{item.year}</span>}
-                        <span className="capitalize">{item.type}</span>
-                        {(verifiedRatings[makeKey(item)] || item.imdbRating) !== "N/A" && (
-                          <span className="text-primary">★ {verifiedRatings[makeKey(item)] || item.imdbRating}</span>
-                        )}
+                      <div className="text-sm sm:text-base leading-6 truncate">
+                        <span className="font-medium text-foreground group-hover:text-primary transition-colors">{item.title}</span>
+                        <span className="text-muted-foreground">
+                          {" • "}
+                          {item.type === 'tv' ? 'Series' : 'Movie'}
+                          {" • "}★ {(verifiedRatings[makeKey(item)] || item.imdbRating) || 'N/A'}
+                          {item.year ? (<>{" • "}{item.year}</>) : null}
+                        </span>
                       </div>
                     </div>
                     {bulkMode && (
