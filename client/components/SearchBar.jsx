@@ -478,8 +478,8 @@ const SearchBar = memo(function SearchBar({
         <input
           id="tiii-like-input"
           type="text"
-          aria-label="Search for a movie or series"
-          placeholder="Search for a movie or series..."
+          aria-label="Find your next watch"
+          placeholder="Find your next watch..."
           value={searchTerm}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
