@@ -474,7 +474,7 @@ const SearchBar = memo(function SearchBar({
 
   return (
     <div className="w-[98%] max-w-[800px] mx-auto relative">
-      <div className="w-full">
+      <div className="w-full flex justify-center">
         <input
           id="tiii-like-input"
           type="text"
@@ -484,7 +484,7 @@ const SearchBar = memo(function SearchBar({
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           onChange={(e) => { setSearchTerm(e.target.value); setVisibleCount(10); }}
-          className={`${isFocused ? 'text-foreground placeholder:text-foreground/30' : 'text-primary placeholder:text-primary/70'} caret-primary bg-transparent border-0 outline-none shadow-none block h-[2em] w-full px-2 font-extralight transition-colors duration-200 text-[2.5rem] sm:text-[3rem] md:text-[3.5rem]`}
+          className={`${isFocused ? 'text-foreground placeholder:text-foreground/30' : 'text-primary placeholder:text-primary/70'} caret-primary bg-transparent border-0 outline-none shadow-none block h-[2em] w-[530px] max-w-full mx-auto px-2 font-extralight transition-colors duration-200 text-[2.5rem] sm:text-[3rem] md:text-[3.5rem]`}
         />
       </div>
 
