@@ -150,3 +150,9 @@
     scrollbar-color: transparent transparent;
   }
 }
+
+/* Hide scrollbar UI globally but keep scroll functionality */
+*::-webkit-scrollbar { width: 0; height: 0; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: transparent; }
+* { scrollbar-width: none; -ms-overflow-style: none; }
