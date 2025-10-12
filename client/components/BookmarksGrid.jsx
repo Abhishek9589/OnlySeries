@@ -325,6 +325,7 @@ function PaginationControlsBar({
                 } else {
                   setCurrentPage(1);
                 }
+                try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
               }
             }}
             onBlur={() => {
