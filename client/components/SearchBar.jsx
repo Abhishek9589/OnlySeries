@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, memo, useRef } from "react";
-import { Search, Loader2, X, WifiOff } from "lucide-react";
+import { Search, Loader2, X, WifiOff, Check } from "lucide-react";
 import { useOffline } from "../hooks/use-offline";
 import FallbackImage from "./FallbackImage";
 import {
@@ -551,19 +551,19 @@ const SearchBar = memo(function SearchBar({
                 {visibleResults.map((item) => (
                   <div
                     key={`${item.type}-${item.id}`}
-                    onClick={() => {
+                    onClick={(e) => {
                       if (bulkMode) {
                         toggleSelect(item);
                       } else {
                         if (item.alreadyAdded) {
-                          // Already added - just close results to indicate it's present
-                          setShowResults(false);
+                          e.preventDefault();
+                          return; // Do nothing for already-added items
                         } else {
                           handleAddBookmark(item);
                         }
                       }
                     }}
-                    className={`flex items-center p-4 cursor-pointer transition-colors group ${bulkMode && isSelected(item) ? 'bg-primary/15' : 'hover:bg-accent/20'}`}
+                    className={`flex items-center p-4 transition-colors group ${bulkMode && isSelected(item) ? 'bg-primary/15' : 'hover:bg-accent/20'} ${(!bulkMode && item.alreadyAdded) ? 'opacity-60 cursor-default' : 'cursor-pointer'}`}
                   >
                     <div className="flex-1 min-w-0">
                       <div className="text-sm sm:text-base leading-6 truncate">
@@ -591,7 +591,9 @@ const SearchBar = memo(function SearchBar({
 
                     {!bulkMode && item.alreadyAdded && (
                       <div className="ml-3 text-xs text-muted-foreground">
-                        <span className="px-2 py-1 rounded-full bg-card/50 border border-border">Added</span>
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-card/60 border border-border/70">
+                          <Check className="w-3.5 h-3.5" /> Added
+                        </span>
                       </div>
                     )}
                   </div>
