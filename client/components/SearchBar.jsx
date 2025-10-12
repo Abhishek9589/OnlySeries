@@ -284,6 +284,9 @@ const SearchBar = memo(function SearchBar({
         })
         .filter((item) => {
           try {
+            const sr = String(item.imdbRating || '').trim();
+            const zeroLike = /^0+(?:\.0+)?$/.test(sr);
+            if (zeroLike) return false;
             return item.similarity > 0 || norm(item.title || '') === norm(normalizedQuery);
           } catch (e) {
             return item.similarity > 0;
