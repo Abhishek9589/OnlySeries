@@ -628,18 +628,6 @@ const SearchBar = memo(function SearchBar({
                       <span className="font-medium">{renderHighlighted(item.title, searchTerm)}</span>
                       <span className="text-muted-foreground">{" • "}{item.type === 'tv' ? 'TV' : 'Movie'}{" • "}★ {(verifiedRatings[makeKey(item)] || item.imdbRating) || 'N/A'}{item.year ? (<> {" • "}{item.year}</>) : null}</span>
                     </div>
-                    {bulkMode && (
-                      <div className="ml-3 flex items-center">
-                        <input
-                          type="checkbox"
-                          className="w-4 h-4 rounded-sm border bg-background accent-primary"
-                          checked={isSelected(item)}
-                          onChange={(e) => { e.stopPropagation(); toggleSelect(item); }}
-                          onClick={(e) => e.stopPropagation()}
-                          aria-label={`Select ${item.title}`}
-                        />
-                      </div>
-                    )}
                     {!bulkMode && item.alreadyAdded && (
                       <div className="ml-3 text-xs text-muted-foreground">
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-card/60 border border-border/70">
