@@ -343,7 +343,7 @@ function PaginationControlsBar({
           />
           <span>of {totalPages}</span>
           <button
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            onClick={() => { setCurrentPage((p) => Math.min(totalPages, p + 1)); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {} }}
             disabled={currentPage >= totalPages}
             className="px-2 sm:px-3 py-1 rounded-md bg-card border border-border text-foreground hover:bg-card/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Next page"
