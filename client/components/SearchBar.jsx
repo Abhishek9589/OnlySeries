@@ -460,7 +460,12 @@ const SearchBar = memo(function SearchBar({
 
   const tvCount = results.filter((r) => r.type === 'tv').length;
   const movieCount = results.filter((r) => r.type === 'movie').length;
-  const filteredByTab = activeTab === 'all' ? results : results.filter((r) => activeTab === 'tv' ? r.type === 'tv' : r.type === 'movie');
+  const baseResults = activeTab === 'all' ? results : results.filter((r) => (activeTab === 'tv' ? r.type === 'tv' : r.type === 'movie'));
+  const filteredByTab = baseResults.filter((r) => {
+    const val = (verifiedRatings[makeKey(r)] ?? r.imdbRating);
+    const s = String(val || '').trim();
+    return !/^0+(?:\.0+)?$/.test(s);
+  });
   const visibleResults = filteredByTab.slice(0, visibleCount);
 
   // Highlight matched query in title
