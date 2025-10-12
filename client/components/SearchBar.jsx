@@ -561,7 +561,7 @@ const SearchBar = memo(function SearchBar({
           data-search-dropdown
           ref={listRef}
           id="search-suggestions"
-          className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-[95%] max-w-[720px] bg-card/95 backdrop-blur-md border border-border/50 rounded-2xl overflow-hidden z-50 shadow-2xl max-h-[28rem] overflow-y-auto custom-scrollbar"
+          className="absolute top-full inset-x-0 mx-auto mt-2 w-[95%] max-w-[720px] bg-card/95 backdrop-blur-md border border-border/50 rounded-2xl overflow-hidden z-50 shadow-2xl max-h-[28rem] overflow-y-auto custom-scrollbar"
           role="listbox"
         >
           {/* Header pills */}
