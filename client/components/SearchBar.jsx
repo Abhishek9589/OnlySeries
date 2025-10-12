@@ -570,7 +570,7 @@ const SearchBar = memo(function SearchBar({
                         <span className="font-medium text-foreground group-hover:text-primary transition-colors">{item.title}</span>
                         <span className="text-muted-foreground">
                           {" • "}
-                          {item.type === 'tv' ? 'Series' : 'Movie'}
+                          {item.type === 'tv' ? 'TV' : 'Movie'}
                           {" • "}★ {(verifiedRatings[makeKey(item)] || item.imdbRating) || 'N/A'}
                           {item.year ? (<>{" • "}{item.year}</>) : null}
                         </span>
