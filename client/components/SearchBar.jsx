@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, memo, useRef } from "react";
-import { Search, Loader2, X, WifiOff, Check } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useOffline } from "../hooks/use-offline";
-import FallbackImage from "./FallbackImage";
 import {
   searchMovies,
   searchTV,
@@ -28,11 +27,9 @@ const SearchBar = memo(function SearchBar({
   const [isLoading, setIsLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const [activeTab, setActiveTab] = useState("all"); // tv | movie | all
-  const [visibleCount, setVisibleCount] = useState(10);
-  const [bulkMode, setBulkMode] = useState(false);
-  const [selectedKeys, setSelectedKeys] = useState([]);
+  const [visibleCount, setVisibleCount] = useState(8); // compact list
   const [verifiedRatings, setVerifiedRatings] = useState({});
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const isOffline = useOffline();
   const [isFocused, setIsFocused] = useState(false);
 
@@ -40,13 +37,26 @@ const SearchBar = memo(function SearchBar({
   const bookmarksRef = useRef(bookmarks);
   const offlineRef = useRef(isOffline);
   const requestSeqRef = useRef(0);
+  const listRef = useRef(null);
 
   useEffect(() => { bookmarksRef.current = bookmarks; }, [bookmarks]);
   useEffect(() => { offlineRef.current = isOffline; }, [isOffline]);
 
+  // Close on outside click (matches tiii.me behavior)
+  useEffect(() => {
+    const onDocDown = (e) => {
+      if (!listRef.current) return;
+      if (e.target.closest && (e.target.closest("#tiii-like-input") || e.target.closest("[data-search-dropdown]") )) return;
+      setShowResults(false);
+      setHighlightedIndex(-1);
+    };
+    document.addEventListener("mousedown", onDocDown);
+    return () => document.removeEventListener("mousedown", onDocDown);
+  }, []);
+
   // Global signal from parent to close dropdowns/cleanup (e.g., after uploads)
   useEffect(() => {
-    const handler = () => { setShowResults(false); setBulkMode(false); setSelectedKeys([]); };
+    const handler = () => { setShowResults(false); setHighlightedIndex(-1); };
     window.addEventListener('close-search-results', handler);
     return () => window.removeEventListener('close-search-results', handler);
   }, []);
@@ -87,7 +97,6 @@ const SearchBar = memo(function SearchBar({
       localStorage.setItem(LS_SEARCH_CACHE, JSON.stringify(obj));
     } catch {}
   };
-
 
   // Improved search similarity function with selection boosts
   const stripDiacritics = (s) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '');
@@ -180,12 +189,9 @@ const SearchBar = memo(function SearchBar({
         );
         return { ...item, alreadyAdded: !!isAlreadyAdded };
       });
-      // Use cached results immediately but still perform a live refresh to avoid stale/missing data
       setResults(prepared);
       setShowResults(true);
-      // mark loading so UI will update when live fetch completes
       setIsLoading(true);
-      // do NOT return — continue to fetch fresh results
     }
 
     setIsLoading(true);
@@ -204,7 +210,7 @@ const SearchBar = memo(function SearchBar({
       const MAX_TOTAL = 200;
       const combinedEntries = [...moviesEntries, ...seriesEntries].slice(0, MAX_TOTAL);
 
-      const MAX_DETAILED = 5; // limit detailed fetches to speed up
+      const MAX_DETAILED = 5;
       const detailed = combinedEntries.slice(0, MAX_DETAILED);
       const basic = combinedEntries.slice(MAX_DETAILED);
 
@@ -213,7 +219,6 @@ const SearchBar = memo(function SearchBar({
           const movie = entry.raw;
           try {
             const year = safeYear(movie.release_date) || "";
-            // Only fetch movie details (no OMDb) to keep search snappy
             const movieDetails = await getMovieDetails(movie.id, { timeout: 4000 }).catch(() => null);
             const rating = typeof movieDetails?.vote_average === "number" ? String(movieDetails.vote_average.toFixed(1)) : (typeof movie.vote_average === 'number' ? String(movie.vote_average.toFixed(1)) : "N/A");
             return {
@@ -232,7 +237,6 @@ const SearchBar = memo(function SearchBar({
           const series = entry.raw;
           try {
             const year = safeYear(series.first_air_date) || "";
-            // Use minimal TV details (no per-season fetches) for search
             const seriesDetails = await getTVDetails(series.id, { minimal: true, timeout: 3000 }).catch(() => null);
             const rating = typeof seriesDetails?.vote_average === "number" ? String(seriesDetails.vote_average.toFixed(1)) : (typeof series.vote_average === 'number' ? String(series.vote_average.toFixed(1)) : "N/A");
             return {
@@ -279,7 +283,6 @@ const SearchBar = memo(function SearchBar({
             return item.similarity > 0;
           }
         })
-        // Prefer exact title matches and favor TV when titles tie
         .sort((a, b) => {
           try {
             const nq = norm(normalizedQuery);
@@ -289,43 +292,18 @@ const SearchBar = memo(function SearchBar({
             const bExact = bTitle === nq;
             if (aExact && !bExact) return -1;
             if (!aExact && bExact) return 1;
-            if (aExact && bExact && a.type !== b.type) {
-              // when both exactly match title, prefer TV over movie
-              if (a.type === 'tv') return -1;
-              if (b.type === 'tv') return 1;
-            }
           } catch (e) {}
 
           if (a.similarity !== b.similarity) return b.similarity - a.similarity;
           if (a.ratingScore !== b.ratingScore) return b.ratingScore - a.ratingScore;
-          // keep previous type ordering as a final tiebreaker (movies first otherwise)
-          if (a.type !== b.type) return a.type === "movie" ? -1 : 1;
           return a.title.localeCompare(b.title);
         });
 
       if (requestId === requestSeqRef.current) {
-
         setResults(successfulResults);
         setCachedSearch(normalizedQuery, successfulResults);
-
-        try {
-          const tvCount = successfulResults.filter((r) => r.type === "tv").length;
-          const movieCount = successfulResults.filter((r) => r.type === "movie").length;
-                    // Auto-switch tab if one type is empty
-          if (tvCount === 0 && movieCount > 0) {
-            setActiveTab("movie");
-          } else if (movieCount === 0 && tvCount > 0) {
-            setActiveTab("tv");
-          } else if (tvCount > 0 && movieCount > 0) {
-            // both types present - show combined results by default
-            setActiveTab("all");
-          }
-        } catch (e) {
-          // ignore any errors adjusting tab
-        }
       }
     } catch (error) {
-      console.error("Search error:", error);
       setResults([]);
       if (requestId === requestSeqRef.current) {
         setHasError(true);
@@ -337,7 +315,7 @@ const SearchBar = memo(function SearchBar({
     }
   };
 
-  // Debounced search without stale closures
+  // Debounced search
   useEffect(() => {
     const normalized = (searchTerm || "").trim();
     if (normalized.length < 2) {
@@ -345,7 +323,8 @@ const SearchBar = memo(function SearchBar({
       setShowResults(false);
       setHasError(false);
       setIsLoading(false);
-      setVisibleCount(10);
+      setVisibleCount(8);
+      setHighlightedIndex(-1);
       return;
     }
 
@@ -364,54 +343,21 @@ const SearchBar = memo(function SearchBar({
         return;
       }
       searchMoviesAndSeries(normalized, id);
-    }, 400);
+    }, 350);
 
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-
-  const handleAddBookmark = (item) => {
-    onAddBookmark(item);
-    const key = `${item.type}:${item.id}`;
-    incrementSelectionBoost(key);
-    setSearchTerm("");
-    setResults([]);
-    setShowResults(false);
-  };
-
-  const clearSearch = () => {
-    setSearchTerm("");
-    setResults([]);
-    setShowResults(false);
-  };
-
-  const filteredByTab = activeTab === 'all' ? results : results.filter((r) =>
-    activeTab === "tv" ? r.type === "tv" : r.type === "movie"
-  );
-  const visibleResults = filteredByTab.slice(0, visibleCount);
-
-  const makeKey = (it) => `${it.type}:${it.id}`;
-  const isSelected = (it) => selectedKeys.includes(makeKey(it));
-  const toggleSelect = (it) => {
-    const key = makeKey(it);
-    setSelectedKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
-  };
-  const selectVisible = () => {
-    const keys = visibleResults.map(makeKey);
-    setSelectedKeys(keys);
-  };
-  const clearSelection = () => setSelectedKeys([]);
-
-  // Verify IMDb ratings for visible results using OMDb (same logic as cards)
+  // Verify IMDb ratings (only for visible items)
   useEffect(() => {
     if (!showResults || isLoading || offlineRef.current) return;
-    const items = visibleResults;
+    const items = results.slice(0, visibleCount);
     if (!items || items.length === 0) return;
 
     let cancelled = false;
     const run = async () => {
       const tasks = items.map(async (it) => {
-        const key = makeKey(it);
+        const key = `${it.type}:${it.id}`;
         if (imdbVerifyCache.has(key)) {
           const cached = imdbVerifyCache.get(key);
           if (!cancelled) setVerifiedRatings((p) => (p[key] === cached ? p : { ...p, [key]: cached }));
@@ -447,9 +393,9 @@ const SearchBar = memo(function SearchBar({
 
     run();
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showResults, isLoading, activeTab, visibleCount, results]);
+  }, [showResults, isLoading, visibleCount, results]);
 
+  // Log misses once per query when no results are shown
   const onNoResultsLogMiss = useCallback(() => {
     try {
       const raw = localStorage.getItem(LS_MISSES);
@@ -459,7 +405,6 @@ const SearchBar = memo(function SearchBar({
     } catch {}
   }, [searchTerm]);
 
-  // Log misses once per query when no results are shown to avoid side-effects during render
   const lastMissRef = useRef('');
   useEffect(() => {
     const q = (searchTerm || '').trim();
@@ -469,6 +414,78 @@ const SearchBar = memo(function SearchBar({
       lastMissRef.current = q;
     }
   }, [showResults, isLoading, searchTerm, results.length, onNoResultsLogMiss]);
+
+  const clearSearch = () => {
+    setSearchTerm("");
+    setResults([]);
+    setShowResults(false);
+    setHighlightedIndex(-1);
+  };
+
+  const handleAddBookmark = (item) => {
+    onAddBookmark(item);
+    const key = `${item.type}:${item.id}`;
+    incrementSelectionBoost(key);
+    clearSearch();
+  };
+
+  const makeKey = (it) => `${it.type}:${it.id}`;
+  const visibleResults = results.slice(0, visibleCount);
+
+  // Highlight matched query in title (case-insensitive)
+  const renderHighlighted = (text, q) => {
+    const src = String(text || '');
+    const query = String(q || '').trim();
+    if (!query) return src;
+    try {
+      const re = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig");
+      const parts = [];
+      let lastIndex = 0;
+      let m;
+      while ((m = re.exec(src)) !== null) {
+        if (m.index > lastIndex) parts.push(src.slice(lastIndex, m.index));
+        parts.push(<span key={m.index} className="text-primary">{m[0]}</span>);
+        lastIndex = m.index + m[0].length;
+      }
+      if (lastIndex < src.length) parts.push(src.slice(lastIndex));
+      return parts;
+    } catch {
+      return src;
+    }
+  };
+
+  const onKeyDown = (e) => {
+    if (!showResults) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = Math.min((highlightedIndex < 0 ? -1 : highlightedIndex) + 1, visibleResults.length - 1);
+      setHighlightedIndex(next);
+      requestAnimationFrame(() => {
+        const el = listRef.current?.querySelector(`[data-index="${next}"]`);
+        el?.scrollIntoView({ block: 'nearest' });
+      });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const next = Math.max((highlightedIndex < 0 ? 0 : highlightedIndex) - 1, 0);
+      setHighlightedIndex(next);
+      requestAnimationFrame(() => {
+        const el = listRef.current?.querySelector(`[data-index="${next}"]`);
+        el?.scrollIntoView({ block: 'nearest' });
+      });
+    } else if (e.key === 'Enter') {
+      if (highlightedIndex >= 0 && highlightedIndex < visibleResults.length) {
+        const it = visibleResults[highlightedIndex];
+        if (!it.alreadyAdded) handleAddBookmark(it);
+      }
+    } else if (e.key === 'Escape') {
+      setShowResults(false);
+      setHighlightedIndex(-1);
+    } else if (e.key === 'Home') {
+      setHighlightedIndex(0);
+    } else if (e.key === 'End') {
+      setHighlightedIndex(Math.max(0, visibleResults.length - 1));
+    }
+  };
 
   if (!isVisible) return null;
 
@@ -483,125 +500,62 @@ const SearchBar = memo(function SearchBar({
           value={searchTerm}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
-          onChange={(e) => { setSearchTerm(e.target.value); setVisibleCount(10); }}
+          onKeyDown={onKeyDown}
+          onChange={(e) => { setSearchTerm(e.target.value); setVisibleCount(8); setHighlightedIndex(-1); }}
           className={`${isFocused ? 'text-foreground placeholder:text-foreground/30' : 'text-primary placeholder:text-primary/70'} caret-primary bg-transparent border-0 outline-none shadow-none block h-[2em] w-[530px] max-w-full mx-auto px-2 font-extralight transition-colors duration-200 text-[2.5rem] sm:text-[3rem] md:text-[3.5rem]`}
+          role="combobox"
+          aria-expanded={showResults}
+          aria-controls="search-suggestions"
         />
       </div>
 
       {showResults && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-card/95 backdrop-blur-md border border-border/50 rounded-2xl overflow-hidden z-50 shadow-2xl max-h-[28rem] overflow-y-auto custom-scrollbar">
+        <div
+          data-search-dropdown
+          ref={listRef}
+          id="search-suggestions"
+          className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-[95%] max-w-[720px] bg-card/95 backdrop-blur-md border border-border/50 rounded-2xl overflow-hidden z-50 shadow-2xl max-h-[24rem] overflow-y-auto custom-scrollbar"
+          role="listbox"
+        >
           {isLoading ? (
             <div className="flex items-center justify-center p-6">
-              <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
+              <Loader2 className="w-5 h-5 animate-spin text-primary mr-2" />
               <span className="text-muted-foreground">Searching...</span>
             </div>
           ) : hasError && offlineRef.current ? (
             <div className="p-6 text-center text-muted-foreground">
-              <WifiOff className="w-8 h-8 mx-auto mb-3 opacity-50" />
               <p className="font-medium">You're offline</p>
               <p className="text-sm mt-1">Search requires an internet connection</p>
             </div>
           ) : results.length > 0 ? (
             <div>
-              <div className="flex items-center gap-2 p-3 border-b border-border/30 sticky top-0 bg-card/95 backdrop-blur-md z-10">
-                <span className="text-sm text-muted-foreground">Results</span>
-                <div className="ml-auto flex items-center gap-2 flex-wrap">
-                  {!bulkMode && (
-                    <>
-                      <button onClick={() => { setActiveTab("tv"); setVisibleCount(10); }} className={`px-3 py-1 text-sm rounded-full border ${activeTab==='tv' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>TV ({results.filter(r=>r.type==='tv').length})</button>
-                      <button onClick={() => { setActiveTab("movie"); setVisibleCount(10); }} className={`px-3 py-1 text-sm rounded-full border ${activeTab==='movie' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>Movies ({results.filter(r=>r.type==='movie').length})</button>
-                      <button onClick={() => { setBulkMode(true); clearSelection(); }} className="px-3 py-1 text-sm rounded-full border bg-card/60 hover:bg-card">Bulk add</button>
-                    </>
-                  )}
-                  {bulkMode && (
-                    <>
-                      <button className="px-3 py-1 text-sm rounded-full border bg-primary text-primary-foreground">Bulk add</button>
-                      <button onClick={() => { setActiveTab("tv"); setVisibleCount(10); }} className={`px-3 py-1 text-sm rounded-full border ${activeTab==='tv' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>TV</button>
-                      <button onClick={() => { setActiveTab("movie"); setVisibleCount(10); }} className={`px-3 py-1 text-sm rounded-full border ${activeTab==='movie' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>Movies</button>
-                      <button onClick={selectVisible} className="px-3 py-1 text-sm rounded-full border bg-card/60 hover:bg-card">Select visible</button>
-                      <button onClick={clearSelection} className="px-3 py-1 text-sm rounded-full border bg-card/60 hover:bg-card">Clear</button>
-                      <button
-                        onClick={() => {
-                          const items = results.filter((r) => selectedKeys.includes(makeKey(r)));
-                          if (items.length > 0) {
-                            items.forEach((item) => {
-                              onAddBookmark(item);
-                              incrementSelectionBoost(makeKey(item));
-                            });
-                            setResults((prev) => prev.filter((r) => !items.some((v) => makeKey(v) === makeKey(r))));
-                          }
-                          // Close suggestions dropdown before opening franchise dialog to avoid overlay conflicts
-                          setShowResults(false);
-                          const movies = items.filter((it) => it.type === 'movie');
-                          if (movies.length > 0 && typeof onBulkFranchise === 'function') {
-                            onBulkFranchise(movies);
-                          }
-                          setBulkMode(false);
-                          clearSelection();
-                        }}
-                        className="px-3 py-1 text-sm rounded-full border bg-card/60 hover:bg-card"
-                      >
-                        Done
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className="divide-y divide-border/30">
-                {visibleResults.map((item) => (
-                  <div
-                    key={`${item.type}-${item.id}`}
-                    onClick={(e) => {
-                      if (bulkMode) {
-                        toggleSelect(item);
-                      } else {
-                        if (item.alreadyAdded) {
-                          e.preventDefault();
-                          return; // Do nothing for already-added items
-                        } else {
-                          handleAddBookmark(item);
-                        }
-                      }
-                    }}
-                    className={`flex items-center p-4 transition-colors group ${bulkMode && isSelected(item) ? 'bg-primary/15' : 'hover:bg-accent/20'} ${(!bulkMode && item.alreadyAdded) ? 'opacity-60 cursor-default' : 'cursor-pointer'}`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm sm:text-base leading-6 truncate">
-                        <span className="font-medium text-foreground group-hover:text-primary transition-colors">{item.title}</span>
-                        <span className="text-muted-foreground">
-                          {" • "}
-                          {item.type === 'tv' ? 'TV' : 'Movie'}
-                          {" • "}★ {(verifiedRatings[makeKey(item)] || item.imdbRating) || 'N/A'}
-                          {item.year ? (<>{" • "}{item.year}</>) : null}
-                        </span>
-                      </div>
+              {visibleResults.map((item, idx) => (
+                <div
+                  key={`${item.type}-${item.id}`}
+                  data-index={idx}
+                  role="option"
+                  aria-selected={highlightedIndex === idx}
+                  onMouseEnter={() => setHighlightedIndex(idx)}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => { if (!item.alreadyAdded) handleAddBookmark(item); }}
+                  className={`px-4 py-2.5 select-none transition-colors cursor-pointer ${highlightedIndex === idx ? 'bg-accent/20' : 'hover:bg-accent/10'} ${item.alreadyAdded ? 'opacity-60 cursor-default' : ''}`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="truncate text-[0.98rem]">
+                      <span className="font-medium">{renderHighlighted(item.title, searchTerm)}</span>
                     </div>
-                    {bulkMode && (
-                      <div className="ml-3 flex items-center">
-                        <input
-                          type="checkbox"
-                          className="w-4 h-4 rounded-sm border bg-background accent-primary"
-                          checked={isSelected(item)}
-                          onChange={(e) => { e.stopPropagation(); toggleSelect(item); }}
-                          onClick={(e) => e.stopPropagation()}
-                          aria-label={`Select ${item.title}`}
-                        />
-                      </div>
-                    )}
-
-                    {!bulkMode && item.alreadyAdded && (
-                      <div className="ml-3 text-xs text-muted-foreground">
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-card/60 border border-border/70">
-                          <Check className="w-3.5 h-3.5" /> Added
-                        </span>
-                      </div>
-                    )}
+                    <div className="flex-shrink-0 text-xs text-muted-foreground">
+                      {item.type === 'tv' ? 'TV' : 'Movie'}
+                      {" • "}★ {(verifiedRatings[makeKey(item)] || item.imdbRating) || 'N/A'}
+                      {item.year ? (<> {" • "}{item.year}</>) : null}
+                    </div>
                   </div>
-                ))}
-              </div>
-              {filteredByTab.length > visibleCount && (
+                </div>
+              ))}
+
+              {results.length > visibleCount && (
                 <div className="p-3 text-center border-t border-border/30 bg-card/95">
-                  <button onClick={() => setVisibleCount((c) => c + 10)} className="text-sm text-primary hover:underline">
+                  <button onClick={() => setVisibleCount((c) => c + 8)} className="text-sm text-primary hover:underline">
                     Show more
                   </button>
                 </div>
