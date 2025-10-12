@@ -555,9 +555,8 @@ const SearchBar = memo(function SearchBar({
           <div className="sticky top-0 z-10 flex items-center gap-1 p-2 bg-card/95 backdrop-blur-md border-b border-border/30 text-xs">
             {!bulkMode && (
               <>
-                <button onClick={() => { setActiveTab('all'); setVisibleCount(8); }} className={`px-3 py-1 rounded-full border ${activeTab==='all' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>All</button>
-                <button onClick={() => { setActiveTab('tv'); setVisibleCount(8); }} className={`px-3 py-1 rounded-full border ${activeTab==='tv' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>TV ({tvCount})</button>
-                <button onClick={() => { setActiveTab('movie'); setVisibleCount(8); }} className={`px-3 py-1 rounded-full border ${activeTab==='movie' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>Movies ({movieCount})</button>
+                <button onClick={() => { setActiveTab((prev) => prev === 'tv' ? 'all' : 'tv'); setVisibleCount(8); }} className={`px-3 py-1 rounded-full border ${activeTab==='tv' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>TV ({tvCount})</button>
+                <button onClick={() => { setActiveTab((prev) => prev === 'movie' ? 'all' : 'movie'); setVisibleCount(8); }} className={`px-3 py-1 rounded-full border ${activeTab==='movie' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>Movies ({movieCount})</button>
                 <button onClick={() => { setBulkMode(true); setSelectedKeys([]); }} className="ml-auto px-3 py-1 rounded-full border bg-card/60 hover:bg-card">Bulk add</button>
               </>
             )}
