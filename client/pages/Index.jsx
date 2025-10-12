@@ -16,6 +16,7 @@ import {
 import { getMovieDetails, getTVDetails, getIMDbRating } from "../lib/api";
 import { loadBookmarks, storeBookmarks } from "../lib/persist";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { motion } from "framer-motion";
 
 export default function Index() {
   const [bookmarks, setBookmarks] = useState([]);
@@ -571,7 +572,7 @@ export default function Index() {
             <input ref={fileInputRef} type="file" accept=".json" onChange={uploadBookmarks} className="hidden" />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
+                <motion.button whileHover={{ y: -1 }} whileTap={{ scale: 0.96 }}
                   className={`p-2 md:p-3 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50 relative ${
                     watchFilter === "all" ? "bg-card/80" :
                     watchFilter === "watched" ? "bg-green-500/80" : "bg-blue-500/80"
@@ -582,7 +583,7 @@ export default function Index() {
                   {watchFilter !== "all" && (
                     <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-primary"></div>
                   )}
-                </button>
+                </motion.button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
                 <DropdownMenuItem
@@ -611,7 +612,7 @@ export default function Index() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
+                <motion.button whileHover={{ y: -1 }} whileTap={{ scale: 0.96 }}
                   className={`p-2 md:p-3 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50 relative ${
                     typeFilter === "all" ? "bg-card/80" : typeFilter === "movie" ? "bg-blue-500/80" : "bg-purple-500/80"
                   }`}
@@ -621,7 +622,7 @@ export default function Index() {
                   {typeFilter !== "all" && (
                     <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-primary"></div>
                   )}
-                </button>
+                </motion.button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
                 <DropdownMenuItem onClick={() => setTypeFilter("all")} className={typeFilter === "all" ? "bg-accent" : ""}>
@@ -638,12 +639,12 @@ export default function Index() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
+                <motion.button whileHover={{ y: -1 }} whileTap={{ scale: 0.96 }}
                   className="p-2 md:p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50"
                   title="Sort"
                 >
                   <ArrowUpDown className="w-4 h-4 md:w-5 md:h-5" />
-                </button>
+                </motion.button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem onClick={() => setSortType("alpha_asc")} className={sortType === "alpha_asc" ? "bg-accent" : ""}>
@@ -664,12 +665,12 @@ export default function Index() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
+                <motion.button whileHover={{ y: -1 }} whileTap={{ scale: 0.96 }}
                   className="p-2 md:p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50"
                   title="More"
                 >
                   <MoreHorizontal className="w-4 h-4 md:w-5 md:h-5" />
-                </button>
+                </motion.button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, memo, useRef } from "react";
 import { Loader2, Check } from "lucide-react";
 import { useOffline } from "../hooks/use-offline";
+import { motion } from "framer-motion";
 import {
   searchMovies,
   searchTV,
@@ -552,11 +553,15 @@ const SearchBar = memo(function SearchBar({
       </div>
 
       {showResults && (
-        <div
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 6 }}
+          transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
           data-search-dropdown
           ref={listRef}
           id="search-suggestions"
-          className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-[95%] max-w-[720px] bg-card/95 backdrop-blur-md border border-border/50 rounded-2xl overflow-hidden z-50 shadow-2xl max-h-[28rem] overflow-y-auto custom-scrollbar"
+          className="absolute top-full inset-x-0 mx-auto mt-2 w-[95%] max-w-[720px] bg-card/95 backdrop-blur-md border border-border/50 rounded-2xl overflow-hidden z-50 shadow-2xl max-h-[28rem] overflow-y-auto custom-scrollbar"
           role="listbox"
         >
           {/* Header pills */}
@@ -668,7 +673,7 @@ const SearchBar = memo(function SearchBar({
               <p>Type at least 2 characters to search</p>
             </div>
           )}
-        </div>
+        </motion.div>
       )}
     </div>
   );

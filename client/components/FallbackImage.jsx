@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Film, Tv, ImageOff } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export default function FallbackImage({ 
   src, 
@@ -46,12 +47,15 @@ export default function FallbackImage({
           </div>
         </div>
       )}
-      <img
+      <motion.img
         src={src}
         alt={alt}
         className={className}
         onError={handleError}
         onLoad={handleLoad}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: isLoading ? 0 : 1 }}
+        transition={{ duration: 0.25, ease: 'easeOut' }}
         style={{ display: hasError ? 'none' : 'block' }}
       />
     </div>
