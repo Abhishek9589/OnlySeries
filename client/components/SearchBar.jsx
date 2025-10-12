@@ -621,7 +621,7 @@ const SearchBar = memo(function SearchBar({
                       if (!item.alreadyAdded) handleAddBookmark(item);
                     }
                   }}
-                  className={`px-4 py-2.5 select-none transition-colors ${bulkMode ? 'cursor-pointer' : (item.alreadyAdded ? 'opacity-60 cursor-default' : 'cursor-pointer')} ${highlightedIndex === idx ? 'bg-accent/20' : 'hover:bg-accent/10'}`}
+                  className={`px-4 py-2.5 select-none transition-colors ${bulkMode ? 'cursor-pointer' : (item.alreadyAdded ? 'opacity-60 cursor-default' : 'cursor-pointer')} ${bulkMode && isSelected(item) ? 'bg-primary/20' : (highlightedIndex === idx ? 'bg-accent/20' : 'hover:bg-accent/10')}`}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="truncate text-[0.98rem]">
