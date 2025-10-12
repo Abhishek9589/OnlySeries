@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, memo, useRef } from "react";
-import { Search, Loader2, X, WifiOff } from "lucide-react";
+import { Search, Loader2, X, WifiOff, Check } from "lucide-react";
 import { useOffline } from "../hooks/use-offline";
 import FallbackImage from "./FallbackImage";
 import {
@@ -551,40 +551,29 @@ const SearchBar = memo(function SearchBar({
                 {visibleResults.map((item) => (
                   <div
                     key={`${item.type}-${item.id}`}
-                    onClick={() => {
+                    onClick={(e) => {
                       if (bulkMode) {
                         toggleSelect(item);
                       } else {
                         if (item.alreadyAdded) {
-                          // Already added - just close results to indicate it's present
-                          setShowResults(false);
+                          e.preventDefault();
+                          return; // Do nothing for already-added items
                         } else {
                           handleAddBookmark(item);
                         }
                       }
                     }}
-                    className={`flex items-center p-4 cursor-pointer transition-colors group ${bulkMode && isSelected(item) ? 'bg-primary/15' : 'hover:bg-accent/20'}`}
+                    className={`flex items-center p-4 transition-colors group ${bulkMode && isSelected(item) ? 'bg-primary/15' : 'hover:bg-accent/20'} ${(!bulkMode && item.alreadyAdded) ? 'opacity-60 cursor-default' : 'cursor-pointer'}`}
                   >
-                    <div className="relative mr-4">
-                      <FallbackImage
-                        src={item.poster}
-                        alt={item.title}
-                        type={item.type}
-                        className="w-12 h-[72px] object-cover rounded-lg shadow-md"
-                        fallbackClassName="w-12 h-[72px] rounded-lg text-xs"
-                      />
-                      <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg" />
-                    </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-foreground truncate group-hover:text-primary transition-colors">
-                        {item.title}
-                      </h3>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        {item.year && <span className="px-2 py-0.5 rounded-full border border-border/50 bg-background/40">{item.year}</span>}
-                        <span className="capitalize">{item.type}</span>
-                        {(verifiedRatings[makeKey(item)] || item.imdbRating) !== "N/A" && (
-                          <span className="text-primary">★ {verifiedRatings[makeKey(item)] || item.imdbRating}</span>
-                        )}
+                      <div className="text-sm sm:text-base leading-6 truncate">
+                        <span className="font-medium text-foreground group-hover:text-primary transition-colors">{item.title}</span>
+                        <span className="text-muted-foreground">
+                          {" • "}
+                          {item.type === 'tv' ? 'TV' : 'Movie'}
+                          {" • "}★ {(verifiedRatings[makeKey(item)] || item.imdbRating) || 'N/A'}
+                          {item.year ? (<>{" • "}{item.year}</>) : null}
+                        </span>
                       </div>
                     </div>
                     {bulkMode && (
@@ -602,7 +591,9 @@ const SearchBar = memo(function SearchBar({
 
                     {!bulkMode && item.alreadyAdded && (
                       <div className="ml-3 text-xs text-muted-foreground">
-                        <span className="px-2 py-1 rounded-full bg-card/50 border border-border">Added</span>
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-card/60 border border-border/70">
+                          <Check className="w-3.5 h-3.5" /> Added
+                        </span>
                       </div>
                     )}
                   </div>

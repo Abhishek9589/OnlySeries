@@ -733,7 +733,6 @@ export default function BookmarksGrid({
               onToggleSelect={onToggleSelect}
               onToggleWatchStatus={onToggleWatchStatus}
               onRemoveBookmark={onRemoveBookmark}
-              onCardClick={onCardClick}
               onUpdatePatch={(patch) => {
                 if (typeof onUpdateBookmark === 'function') {
                   onUpdateBookmark(item.id, item.type, patch);
