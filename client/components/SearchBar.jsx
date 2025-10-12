@@ -563,8 +563,8 @@ const SearchBar = memo(function SearchBar({
             {bulkMode && (
               <>
                 <button className="px-3 py-1 rounded-full border bg-primary text-primary-foreground">Bulk add</button>
-                <button onClick={() => { setActiveTab('tv'); setVisibleCount(8); }} className={`px-3 py-1 rounded-full border ${activeTab==='tv' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>TV</button>
-                <button onClick={() => { setActiveTab('movie'); setVisibleCount(8); }} className={`px-3 py-1 rounded-full border ${activeTab==='movie' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>Movies</button>
+                <button onClick={() => { setActiveTab((prev) => prev === 'tv' ? 'all' : 'tv'); setVisibleCount(8); }} className={`px-3 py-1 rounded-full border ${activeTab==='tv' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>TV</button>
+                <button onClick={() => { setActiveTab((prev) => prev === 'movie' ? 'all' : 'movie'); setVisibleCount(8); }} className={`px-3 py-1 rounded-full border ${activeTab==='movie' ? 'bg-primary text-primary-foreground' : 'bg-transparent text-foreground/80'}`}>Movies</button>
                 <div className="ml-auto flex items-center gap-1">
                   <button onClick={selectVisible} className="px-3 py-1 rounded-full border bg-card/60 hover:bg-card">Select visible</button>
                   <button onClick={clearSelection} className="px-3 py-1 rounded-full border bg-card/60 hover:bg-card">Clear</button>
