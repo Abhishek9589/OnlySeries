@@ -216,7 +216,12 @@ export default function Index() {
                   }
                 }
 
-                results[i] = { ...b, runtime, imdbRating };
+                {
+                  const newRuntime = runtime;
+                  const newImdb = imdbRating;
+                  const sameMovie = ((Number.isFinite(b.runtime) ? b.runtime : 120) === newRuntime) && ((b.imdbRating || "N/A") === newImdb);
+                  results[i] = sameMovie ? b : { ...b, runtime: newRuntime, imdbRating: newImdb };
+                }
                 continue;
               }
 
@@ -331,17 +336,30 @@ export default function Index() {
 
                 const tmdbRating = typeof details?.vote_average === 'number' ? String(details.vote_average.toFixed(1)) : undefined;
 
-                results[i] = {
-                  ...b,
-                  genres: Array.isArray(details?.genres) ? details.genres : (Array.isArray(b.genres) ? b.genres : []),
-                  seasons: Number.isFinite(details?.number_of_seasons) ? details.number_of_seasons : (Array.isArray(details?.seasons) ? details.seasons.length : (Number.isFinite(b.seasons) ? b.seasons : undefined)),
-                  number_of_seasons: Number.isFinite(details?.number_of_seasons) ? details.number_of_seasons : undefined,
-                  episodes: numEpisodes,
-                  averageEpisodeRuntime: avgRuntime,
-                  episode_run_time: epRunArr,
-                  totalRuntimeMinutes: totalMinutes,
-                  imdbRating: (!imdbRating || imdbRating === "N/A") ? (tmdbRating || b.imdbRating || "N/A") : imdbRating,
-                };
+                {
+                  const nextTv = {
+                    ...b,
+                    genres: Array.isArray(details?.genres) ? details.genres : (Array.isArray(b.genres) ? b.genres : []),
+                    seasons: Number.isFinite(details?.number_of_seasons) ? details.number_of_seasons : (Array.isArray(details?.seasons) ? details.seasons.length : (Number.isFinite(b.seasons) ? b.seasons : undefined)),
+                    number_of_seasons: Number.isFinite(details?.number_of_seasons) ? details.number_of_seasons : undefined,
+                    episodes: numEpisodes,
+                    averageEpisodeRuntime: avgRuntime,
+                    episode_run_time: epRunArr,
+                    totalRuntimeMinutes: totalMinutes,
+                    imdbRating: (!imdbRating || imdbRating === "N/A") ? (tmdbRating || b.imdbRating || "N/A") : imdbRating,
+                  };
+                  const sameTv =
+                    ((Array.isArray(nextTv.genres) ? JSON.stringify(nextTv.genres) : null) === (Array.isArray(b.genres) ? JSON.stringify(b.genres) : null)) &&
+                    nextTv.seasons === b.seasons &&
+                    nextTv.number_of_seasons === b.number_of_seasons &&
+                    nextTv.episodes === b.episodes &&
+                    nextTv.averageEpisodeRuntime === b.averageEpisodeRuntime &&
+                    ((Array.isArray(nextTv.episode_run_time) ? JSON.stringify(nextTv.episode_run_time) : null) === (Array.isArray(b.episode_run_time) ? JSON.stringify(b.episode_run_time) : null)) &&
+                    nextTv.totalRuntimeMinutes === b.totalRuntimeMinutes &&
+                    nextTv.imdbRating === b.imdbRating;
+
+                  results[i] = sameTv ? b : nextTv;
+                }
 
                 continue;
               }
@@ -475,7 +493,19 @@ export default function Index() {
                   id: Number(it.id),
                   type,
                   title,
-                  year: String(it.year || it.release_year || it.first_air_year || it.release_date ? new Date(it.release_date || it.first_air_date || `${it.year || ''}-01-01`).getFullYear() : '') || '',
+                  year: (() => {
+                    const candidates = [it.year, it.release_year, it.first_air_year, it.release_date, it.first_air_date];
+                    for (const c of candidates) {
+                      if (!c) continue;
+                      if (typeof c === 'number' && Number.isFinite(c)) return String(c);
+                      const s = String(c);
+                      if (/^\d{4}$/.test(s)) return s;
+                      const d = new Date(s);
+                      const y = d && Number.isFinite(d.getFullYear()) ? d.getFullYear() : NaN;
+                      if (Number.isFinite(y)) return String(y);
+                    }
+                    return '';
+                  })(),
                   poster,
                   imdbRating: typeof it.imdbRating === 'string' ? it.imdbRating : (typeof it.vote_average === 'number' ? String(it.vote_average.toFixed(1)) : 'N/A'),
                   watchStatus: it.watchStatus === 'watched' ? 'watched' : 'unwatched',
