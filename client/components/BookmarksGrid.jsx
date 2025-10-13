@@ -1,6 +1,7 @@
 import { X, Clock, Star, Tv, Eye, EyeOff, Play, Search } from "lucide-react";
 import FallbackImage from "./FallbackImage";
 import React, { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { getMovieDetails, getTVDetails, getIMDbRating } from "../lib/api";
 
 const PAGE_SIZE = 36;
@@ -183,7 +184,7 @@ function BookmarkCard({
           src={item.poster}
           alt={item.title}
           type={item.type}
-          className="w-full h-full object-cover transition-transform duration-300"
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
         />
 
         {selectionMode && item.type === 'movie' && (
@@ -202,8 +203,9 @@ function BookmarkCard({
           </label>
         )}
 
+        <AnimatePresence>
         {hoveredCard === `${item.type}-${item.id}` && !selectionMode && (
-          <div className="absolute inset-0 bg-black/80 flex flex-col justify-between p-4 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="absolute inset-0 bg-black/80 flex flex-col justify-between p-4 backdrop-blur-sm">
             <div className="flex justify-between items-start">
               <button
                 onClick={(e) => {
@@ -274,8 +276,9 @@ function BookmarkCard({
                 </>
               )}
             </div>
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
       </div>
     </div>
   );
@@ -302,7 +305,7 @@ function PaginationControlsBar({
         <div />
         <div className="flex-1 flex items-center justify-center gap-2 sm:gap-3 text-xs sm:text-sm text-muted-foreground">
           <button
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            onClick={() => { setCurrentPage((p) => Math.max(1, p - 1)); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {} }}
             disabled={currentPage <= 1}
             className="px-2 sm:px-3 py-1 rounded-md bg-card border border-border text-foreground hover:bg-card/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Previous page"
@@ -325,6 +328,7 @@ function PaginationControlsBar({
                 } else {
                   setCurrentPage(1);
                 }
+                try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
               }
             }}
             onBlur={() => {
@@ -335,6 +339,7 @@ function PaginationControlsBar({
               } else {
                 setCurrentPage(1);
               }
+              try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
             }}
             inputMode="numeric"
             pattern="[0-9]*"
@@ -343,7 +348,7 @@ function PaginationControlsBar({
           />
           <span>of {totalPages}</span>
           <button
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            onClick={() => { setCurrentPage((p) => Math.min(totalPages, p + 1)); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {} }}
             disabled={currentPage >= totalPages}
             className="px-2 sm:px-3 py-1 rounded-md bg-card border border-border text-foreground hover:bg-card/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Next page"
@@ -617,13 +622,19 @@ export default function BookmarksGrid({
         ref={gridRef}
         className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-6 gap-0 justify-items-stretch items-stretch"
       >
+        <AnimatePresence>
         {visibleCards.map((card) => {
           if (card.kind === "franchise") {
             const { franchise, movies } = card;
             return (
-              <div
+              <motion.div
                 key={card.franchiseKey}
                 className="relative group cursor-pointer w-full"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+                whileHover={{ y: -2 }}
                 onMouseEnter={() => setHoveredCard(card.franchiseKey)}
                 onMouseLeave={() => setHoveredCard(null)}
                 onClick={() => { if (movies[0].type === 'tv') return; onCardClick && onCardClick({ ...movies[0], franchise }); }}
@@ -633,7 +644,7 @@ export default function BookmarksGrid({
                     src={movies[0].poster}
                     alt={franchise}
                     type={movies[0].type}
-                    className="w-full h-full object-cover transition-transform duration-300"
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                   />
 
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
@@ -719,32 +730,40 @@ export default function BookmarksGrid({
                     </div>
                   )}
                 </div>
-              </div>
+              </motion.div>
             );
           }
 
           const item = card.item;
           return (
-            <BookmarkCard
+            <motion.div
               key={`${item.type}-${item.id}`}
-              item={item}
-              selectionMode={selectionMode}
-              isSelected={isSelected}
-              onToggleSelect={onToggleSelect}
-              onToggleWatchStatus={onToggleWatchStatus}
-              onRemoveBookmark={onRemoveBookmark}
-              onCardClick={onCardClick}
-              onUpdatePatch={(patch) => {
-                if (typeof onUpdateBookmark === 'function') {
-                  onUpdateBookmark(item.id, item.type, patch);
-                }
-              }}
-              hoveredCard={hoveredCard}
-              setHoveredCard={setHoveredCard}
-              formatWatchTime={formatWatchTime}
-            />
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+              whileHover={{ y: -2 }}
+            >
+              <BookmarkCard
+                item={item}
+                selectionMode={selectionMode}
+                isSelected={isSelected}
+                onToggleSelect={onToggleSelect}
+                onToggleWatchStatus={onToggleWatchStatus}
+                onRemoveBookmark={onRemoveBookmark}
+                onUpdatePatch={(patch) => {
+                  if (typeof onUpdateBookmark === 'function') {
+                    onUpdateBookmark(item.id, item.type, patch);
+                  }
+                }}
+                hoveredCard={hoveredCard}
+                setHoveredCard={setHoveredCard}
+                formatWatchTime={formatWatchTime}
+              />
+            </motion.div>
           );
         })}
+        </AnimatePresence>
       </div>
 
       <PaginationControlsBar
