@@ -1,4 +1,4 @@
-import { X, Clock, Star, Tv, Eye, EyeOff, Play, Search } from "lucide-react";
+import { X, Clock, Star, Tv, Eye, EyeOff, Play } from "lucide-react";
 import FallbackImage from "./FallbackImage";
 import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
