@@ -367,57 +367,7 @@ function PaginationControlsBar({
               tabIndex={-1}
               className={`w-full p-0 border-0 bg-card/80 backdrop-blur-sm rounded-2xl focus:outline-none transition-all shadow-lg text-foreground`}
             />
-            {false && localSearch && (
-              <button
-                onClick={() => setLocalSearch("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted-foreground hover:text-foreground"
-                aria-label="Clear"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
 
-            {false && searchQ && (
-              <div className="absolute z-50 left-0 right-0 mt-2 max-h-72 overflow-y-auto custom-scrollbar bg-card/95 backdrop-blur-md border border-border/50 rounded-xl shadow-2xl">
-                {searchResults.length === 0 ? (
-                  <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
-                ) : (
-                  <ul className="divide-y divide-border/50">
-                    {searchResults.slice(0, 20).map((res) => {
-                      if (res.kind === "franchise") {
-                        const cover = res.movies[0];
-                        return (
-                          <li
-                            key={res.franchiseKey}
-                            className="flex items-center gap-3 px-3 py-2 hover:bg-secondary/40 cursor-pointer"
-                            onClick={() => onCardClick && onCardClick({ ...cover, franchise: res.franchise })}
-                          >
-                            <img src={cover.poster} alt={res.franchise} className="w-8 h-12 object-cover rounded-md" />
-                            <div className="flex-1">
-                              <div className="text-sm text-foreground font-medium">{res.franchise}</div>
-                              <div className="text-xs text-muted-foreground">Franchise</div>
-                            </div>
-                          </li>
-                        );
-                      }
-                      const it = res.item;
-                      return (
-                        <li
-                          key={`${it.type}-${it.id}`}
-                          className={`flex items-center gap-3 px-3 py-2 hover:bg-secondary/40 ${it.type === 'tv' || it.type === 'movie' ? '' : 'cursor-pointer'}`}
-                        >
-                          <img src={it.poster} alt={it.title} className="w-8 h-12 object-cover rounded-md" />
-                          <div className="flex-1">
-                            <div className="text-sm text-foreground font-medium" style={{display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'normal'}}>{it.title}</div>
-                            <div className="text-xs text-muted-foreground capitalize">{it.type}</div>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </div>
