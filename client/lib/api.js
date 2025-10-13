@@ -281,36 +281,3 @@ export const getTVDetails = async (id, options = {}) => {
     });
   }
 };
-
-export const getTVSeason = async (id, season) => {
-  try {
-    const response = await axios.get(`/api/tv/${id}/season/${season}`, {
-      timeout: 10000,
-    });
-    return response.data;
-  } catch (error) {
-    return handleApiError(error, {
-      season_number: season,
-      episodes: [],
-      name: `Season ${season}`,
-    });
-  }
-};
-
-export const getTrendingMovies = async () => {
-  try {
-    const response = await axios.get(`/api/trending/movies`, { timeout: 15000 });
-    return response.data.results || [];
-  } catch (error) {
-    return handleApiError(error, []);
-  }
-};
-
-export const getTrendingTV = async () => {
-  try {
-    const response = await axios.get(`/api/trending/tv`, { timeout: 15000 });
-    return response.data.results || [];
-  } catch (error) {
-    return handleApiError(error, []);
-  }
-};

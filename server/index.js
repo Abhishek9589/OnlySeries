@@ -6,10 +6,7 @@ import {
   searchTV,
   getMovieDetails,
   getTVDetails,
-  getTVSeason,
   getIMDbRating,
-  trendingMovies,
-  trendingTV,
 } from "./routes/tmdb-proxy.js";
 
 export function createServer() {
@@ -37,10 +34,7 @@ export function createServer() {
   app.get("/api/search/tv", searchTV);
   app.get("/api/movie/:id", getMovieDetails);
   app.get("/api/tv/:id", getTVDetails);
-  app.get("/api/tv/:id/season/:season", getTVSeason);
   app.get("/api/imdb-rating", getIMDbRating);
-  app.get("/api/trending/movies", trendingMovies);
-  app.get("/api/trending/tv", trendingTV);
 
   return app;
 }
