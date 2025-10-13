@@ -47,18 +47,26 @@ const SearchBar = memo(function SearchBar({
   useEffect(() => { bookmarksRef.current = bookmarks; }, [bookmarks]);
   useEffect(() => { offlineRef.current = isOffline; }, [isOffline]);
 
-  // Close on outside click
+  // Close on outside click/touch with guards for detached nodes
   useEffect(() => {
     const onDocDown = (e) => {
       if (!listRef.current) return;
-      if (e.target.closest && (e.target.closest("#tiii-like-input") || e.target.closest("[data-search-dropdown]") )) return;
+      const t = e && e.target;
+      if (t && t.isConnected === false) return; // ignore events from detached nodes
+      if (t && typeof t.closest === 'function') {
+        if (t.closest('#tiii-like-input') || t.closest('[data-search-dropdown]')) return;
+      }
       setShowResults(false);
       setHighlightedIndex(-1);
       setBulkMode(false);
       setSelectedKeys([]);
     };
-    document.addEventListener("mousedown", onDocDown);
-    return () => document.removeEventListener("mousedown", onDocDown);
+    document.addEventListener('mousedown', onDocDown);
+    document.addEventListener('touchstart', onDocDown, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', onDocDown);
+      document.removeEventListener('touchstart', onDocDown);
+    };
   }, []);
 
   // Global signal from parent to close dropdowns/cleanup (e.g., after uploads)
@@ -171,7 +179,7 @@ const SearchBar = memo(function SearchBar({
     };
   };
 
-  const searchMoviesAndSeries = async (query, requestId) => {
+  const searchMoviesAndSeries = async (query, requestId, opts = {}) => {
     const normalizedQuery = query.trim();
     if (!normalizedQuery || normalizedQuery.length < 2) {
       setResults([]);
@@ -198,10 +206,10 @@ const SearchBar = memo(function SearchBar({
       });
       setResults(prepared);
       setShowResults(true);
-      setIsLoading(true);
+      if (!opts.servedFromCache) setIsLoading(true);
     }
 
-    setIsLoading(true);
+    if (!opts.servedFromCache) setIsLoading(true);
     setShowResults(true);
     setHasError(false);
 
@@ -342,11 +350,26 @@ const SearchBar = memo(function SearchBar({
       return;
     }
 
-    setShowResults(true);
-    setHasError(false);
-    setIsLoading(true);
-
     const id = ++requestSeqRef.current;
+
+    const cached = getCachedSearch(normalized);
+    if (cached) {
+      const prepared = cached.map((item) => {
+        const isAlreadyAdded = bookmarksRef.current.some(
+          (bookmark) => Number(bookmark.id) === Number(item.id) && bookmark.type === item.type
+        );
+        return { ...item, alreadyAdded: !!isAlreadyAdded };
+      });
+      setResults(prepared);
+      setShowResults(true);
+      setHasError(false);
+      setIsLoading(false);
+    } else {
+      setShowResults(true);
+      setHasError(false);
+      setIsLoading(true);
+    }
+
     const timer = setTimeout(() => {
       if (offlineRef.current) {
         if (id === requestSeqRef.current) {
@@ -356,7 +379,7 @@ const SearchBar = memo(function SearchBar({
         }
         return;
       }
-      searchMoviesAndSeries(normalized, id);
+      searchMoviesAndSeries(normalized, id, { servedFromCache: !!cached });
     }, 350);
 
     return () => clearTimeout(timer);
@@ -549,6 +572,7 @@ const SearchBar = memo(function SearchBar({
           role="combobox"
           aria-expanded={showResults}
           aria-controls="search-suggestions"
+          aria-activedescendant={highlightedIndex >= 0 && highlightedIndex < visibleResults.length ? `search-option-${visibleResults[highlightedIndex].type}-${visibleResults[highlightedIndex].id}` : undefined}
         />
       </div>
 
@@ -621,6 +645,7 @@ const SearchBar = memo(function SearchBar({
             <div>
               {visibleResults.map((item, idx) => (
                 <div
+                  id={`search-option-${item.type}-${item.id}`}
                   key={`${item.type}-${item.id}`}
                   data-index={idx}
                   role="option"
