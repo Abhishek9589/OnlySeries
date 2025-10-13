@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { MoreHorizontal, Filter, Eye, EyeOff, ArrowUpDown, RefreshCw, Tv, Play } from "lucide-react";
+import { MoreHorizontal, Filter, Eye, EyeOff, ArrowUpDown, Tv } from "lucide-react";
 import SearchBar from "../components/SearchBar";
 import Timer from "../components/Timer";
 import BookmarksGrid from "../components/BookmarksGrid";
@@ -30,12 +30,10 @@ export default function Index() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState([]);
   const [showFranchiseDialog, setShowFranchiseDialog] = useState(false);
-  const [franchiseName, setFranchiseName] = useState("");
   const [franchiseFilter, setFranchiseFilter] = useState("");
 
   // Diagnostic: missing OMDb/IMDb ratings
   const [missingRatings, setMissingRatings] = useState([]);
-  const [scanning, setScanning] = useState(false);
   const [fetchingRatings, setFetchingRatings] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const UI_STATE_KEY = "onlyseries-ui-v1";
@@ -735,7 +733,6 @@ export default function Index() {
                   setSelectionMode(false);
                   setSelectedKeys([]);
                   setShowFranchiseDialog(false);
-                  setFranchiseName("");
                   setFranchiseFilter("");
                   setMissingRatings([]);
 
