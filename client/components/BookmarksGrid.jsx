@@ -1,4 +1,4 @@
-import { X, Clock, Star, Tv, Eye, EyeOff, Play, Search } from "lucide-react";
+import { X, Clock, Star, Tv, Eye, EyeOff, Play } from "lucide-react";
 import FallbackImage from "./FallbackImage";
 import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -296,9 +296,6 @@ function PaginationControlsBar({
   searchResults,
   onCardClick,
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const inputRef = useRef(null);
-  useEffect(() => { if (expanded) { inputRef.current?.focus(); } }, [expanded]);
   return (
     <div className="w-full first:hidden">
       <div className="flex items-center gap-2 justify-between">
@@ -356,20 +353,7 @@ function PaginationControlsBar({
             Next
           </button>
         </div>
-        <div className="hidden md:flex justify-end items-center gap-2">
-                    <div className={`relative transition-all duration-200 w-0`}>
-            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4 opacity-0`} />
-            <input
-              ref={inputRef}
-              value={localSearch}
-              onChange={(e) => setLocalSearch(e.target.value)}
-              placeholder="Search your list..."
-              tabIndex={-1}
-              className={`w-full p-0 border-0 bg-card/80 backdrop-blur-sm rounded-2xl focus:outline-none transition-all shadow-lg text-foreground`}
-            />
-
-          </div>
-        </div>
+        <div />
       </div>
     </div>
   );
@@ -580,6 +564,9 @@ export default function BookmarksGrid({
               <motion.div
                 key={card.franchiseKey}
                 className="relative group cursor-pointer w-full"
+                role="button"
+                tabIndex={0}
+                aria-label={`Open ${franchise}`}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
