@@ -13,7 +13,31 @@ export function createServer() {
   const app = express();
 
   // Middleware
-  app.use(cors());
+  const isProd = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+  const rawFrontend = process.env.FRONTEND_URL?.trim() || "";
+  const allowedOrigins = rawFrontend.split(",").map((s) => s.trim()).filter(Boolean);
+  if (!allowedOrigins.includes("http://localhost:8080")) allowedOrigins.push("http://localhost:8080");
+  if (!allowedOrigins.includes("http://127.0.0.1:8080")) allowedOrigins.push("http://127.0.0.1:8080");
+
+  const corsOptions = isProd
+    ? {
+        origin: (origin, callback) => {
+          if (!origin) return callback(null, true);
+          if (allowedOrigins.includes(origin)) return callback(null, true);
+          return callback(new Error("Not allowed by CORS"));
+        },
+        credentials: true,
+        methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization"],
+        optionsSuccessStatus: 200,
+      }
+    : {
+        origin: true, // allow all origins in development (Vite dev server + Builder preview domains)
+        credentials: true,
+      };
+
+  app.use(cors(corsOptions));
+  app.options("*", cors(corsOptions));
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 

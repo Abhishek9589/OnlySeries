@@ -115,10 +115,24 @@ npm start
 
 ## 🌐 Deployment
 
-- Live Frontend: https://88c37ff85adc4dc183ef927ec4b9f5de.fly.dev
-- Live Backend/API: https://88c37ff85adc4dc183ef927ec4b9f5de.fly.dev/api
+- Frontend (Vercel): https://onlyseriestest.vercel.app
+- Backend (Render): https://onlyseriestest.onrender.com
 
-> Any Node‑capable host works. For a single‑process deploy, run `npm run build && npm start`.
+Both services are live and connected via environment variables in the root .env file. No extra configuration is required after deployment.
+
+.env (root)
+
+```dotenv
+# Frontend (.env)
+VITE_BACKEND_URL=https://onlyseriestest.onrender.com
+
+# Backend (.env)
+FRONTEND_URL=https://onlyseriestest.vercel.app
+```
+
+Notes:
+- Frontend uses VITE_BACKEND_URL to call the backend at build/runtime.
+- Backend uses FRONTEND_URL to restrict CORS to the deployed frontend only.
 
 ---
 

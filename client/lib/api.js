@@ -1,5 +1,23 @@
 import axios from "axios";
 
+// Axios instance with dynamic baseURL from VITE_BACKEND_URL (prod) and localhost fallback for dev
+const backendUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_BACKEND_URL)
+  ? String(import.meta.env.VITE_BACKEND_URL).trim()
+  : "";
+const isBrowser = typeof window !== 'undefined';
+const isLocalHost = isBrowser && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
+let effectiveBaseURL = "";
+if (backendUrl && /^https?:\/\//.test(backendUrl)) {
+  if (backendUrl.includes("localhost")) {
+    effectiveBaseURL = isLocalHost ? backendUrl : "";
+  } else {
+    effectiveBaseURL = backendUrl;
+  }
+} else if (isLocalHost) {
+  effectiveBaseURL = "http://localhost:3000";
+}
+const api = axios.create({ baseURL: effectiveBaseURL });
+
 // Enhanced error handling with offline detection
 const handleApiError = (error, fallback = null) => {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -21,7 +39,7 @@ const handleApiError = (error, fallback = null) => {
 // Use local API proxy endpoints instead of direct external API calls
 export const getIMDbRating = async ({ title, year, imdbId } = {}) => {
   try {
-    const response = await axios.get("/api/imdb-rating", {
+    const response = await api.get("/api/imdb-rating", {
       params: { title, year, imdbId },
       timeout: 10000, // 10 second timeout
     });
@@ -92,7 +110,7 @@ export const searchMovies = async (query, options = {}) => {
 
   try {
     // Page 1
-    const first = await axios.get('/api/search/movies', {
+    const first = await api.get('/api/search/movies', {
       params: { query, page: 1 },
       timeout: 8000,
     });
@@ -104,7 +122,7 @@ export const searchMovies = async (query, options = {}) => {
       const pages = [];
       for (let p = 2; p <= totalPages; p++) {
         pages.push(
-          axios.get('/api/search/movies', {
+          api.get('/api/search/movies', {
             params: { query, page: p },
             timeout: 8000,
           }).then(r => (r.data?.results || [])).catch(() => [])
@@ -144,7 +162,7 @@ export const searchTV = async (query, options = {}) => {
   if (cached) return cached;
 
   try {
-    const first = await axios.get('/api/search/tv', {
+    const first = await api.get('/api/search/tv', {
       params: { query, page: 1 },
       timeout: 8000,
     });
@@ -156,7 +174,7 @@ export const searchTV = async (query, options = {}) => {
       const pages = [];
       for (let p = 2; p <= totalPages; p++) {
         pages.push(
-          axios.get('/api/search/tv', {
+          api.get('/api/search/tv', {
             params: { query, page: p },
             timeout: 8000,
           }).then(r => (r.data?.results || [])).catch(() => [])
@@ -246,7 +264,7 @@ export const searchTV = async (query, options = {}) => {
 
 export const getMovieDetails = async (id, options = {}) => {
   try {
-    const response = await axios.get(`/api/movie/${id}`, {
+    const response = await api.get(`/api/movie/${id}`, {
       timeout: options.timeout || 8000,
     });
     return response.data;
@@ -265,7 +283,7 @@ export const getTVDetails = async (id, options = {}) => {
   try {
     const params = {};
     if (options.minimal) params.minimal = true;
-    const response = await axios.get(`/api/tv/${id}`, {
+    const response = await api.get(`/api/tv/${id}`, {
       params,
       timeout: options.timeout || 5000,
     });
