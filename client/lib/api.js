@@ -1,11 +1,22 @@
 import axios from "axios";
 
-// Axios instance with dynamic baseURL from VITE_BACKEND_URL
+// Axios instance with dynamic baseURL from VITE_BACKEND_URL (prod) and localhost fallback for dev
 const backendUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_BACKEND_URL)
   ? String(import.meta.env.VITE_BACKEND_URL).trim()
   : "";
-const baseURL = backendUrl && /^https?:\/\//.test(backendUrl) ? backendUrl : "";
-const api = axios.create({ baseURL });
+const isBrowser = typeof window !== 'undefined';
+const isLocalHost = isBrowser && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
+let effectiveBaseURL = "";
+if (backendUrl && /^https?:\/\//.test(backendUrl)) {
+  if (backendUrl.includes("localhost")) {
+    effectiveBaseURL = isLocalHost ? backendUrl : "";
+  } else {
+    effectiveBaseURL = backendUrl;
+  }
+} else if (isLocalHost) {
+  effectiveBaseURL = "http://localhost:3000";
+}
+const api = axios.create({ baseURL: effectiveBaseURL });
 
 // Enhanced error handling with offline detection
 const handleApiError = (error, fallback = null) => {

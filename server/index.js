@@ -13,11 +13,14 @@ export function createServer() {
   const app = express();
 
   // Middleware
-  const frontendUrl = process.env.FRONTEND_URL?.trim();
+  const rawFrontend = process.env.FRONTEND_URL?.trim() || "";
+  const allowedOrigins = rawFrontend.split(",").map((s) => s.trim()).filter(Boolean);
+  if (!allowedOrigins.includes("http://localhost:8080")) allowedOrigins.push("http://localhost:8080");
+  if (!allowedOrigins.includes("http://127.0.0.1:8080")) allowedOrigins.push("http://127.0.0.1:8080");
   const corsOptions = {
     origin: (origin, callback) => {
-      if (!origin) return callback(null, true); // allow same-origin and non-browser requests
-      if (frontendUrl && origin === frontendUrl) return callback(null, true);
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
       return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
