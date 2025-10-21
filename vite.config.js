@@ -9,9 +9,19 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    allowedHosts: ["onlyseriestest.onrender.com"], // ✅ Add this line
     fs: {
-      allow: [path.resolve(process.cwd(), "client"), path.resolve(process.cwd(), "shared")],
-      deny: [".env", ".env.*", "*.{crt,pem}", "**/.git/**", path.resolve(process.cwd(), "server") + "/**"],
+      allow: [
+        path.resolve(process.cwd(), "client"),
+        path.resolve(process.cwd(), "shared"),
+      ],
+      deny: [
+        ".env",
+        ".env.*",
+        "*.{crt,pem}",
+        "**/.git/**",
+        path.resolve(process.cwd(), "server") + "/**",
+      ],
     },
   },
   build: {
