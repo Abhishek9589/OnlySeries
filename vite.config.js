@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
-    outDir: "../dist/spa",
+    outDir: path.resolve(process.cwd(), "dist/spa"),
   },
   publicDir: "public",
   plugins: [react(), expressPlugin()],
