@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { MoreHorizontal, Filter, Eye, EyeOff, ArrowUpDown, RefreshCw, Tv, Play } from "lucide-react";
+import { MoreHorizontal, Filter, Eye, EyeOff, ArrowUpDown, Tv } from "lucide-react";
 import SearchBar from "../components/SearchBar";
 import Timer from "../components/Timer";
 import BookmarksGrid from "../components/BookmarksGrid";
@@ -16,6 +16,7 @@ import {
 import { getMovieDetails, getTVDetails, getIMDbRating } from "../lib/api";
 import { loadBookmarks, storeBookmarks } from "../lib/persist";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { motion } from "framer-motion";
 
 export default function Index() {
   const [bookmarks, setBookmarks] = useState([]);
@@ -29,12 +30,10 @@ export default function Index() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState([]);
   const [showFranchiseDialog, setShowFranchiseDialog] = useState(false);
-  const [franchiseName, setFranchiseName] = useState("");
   const [franchiseFilter, setFranchiseFilter] = useState("");
 
   // Diagnostic: missing OMDb/IMDb ratings
   const [missingRatings, setMissingRatings] = useState([]);
-  const [scanning, setScanning] = useState(false);
   const [fetchingRatings, setFetchingRatings] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const UI_STATE_KEY = "onlyseries-ui-v1";
@@ -217,7 +216,12 @@ export default function Index() {
                   }
                 }
 
-                results[i] = { ...b, runtime, imdbRating };
+                {
+                  const newRuntime = runtime;
+                  const newImdb = imdbRating;
+                  const sameMovie = ((Number.isFinite(b.runtime) ? b.runtime : 120) === newRuntime) && ((b.imdbRating || "N/A") === newImdb);
+                  results[i] = sameMovie ? b : { ...b, runtime: newRuntime, imdbRating: newImdb };
+                }
                 continue;
               }
 
@@ -332,17 +336,30 @@ export default function Index() {
 
                 const tmdbRating = typeof details?.vote_average === 'number' ? String(details.vote_average.toFixed(1)) : undefined;
 
-                results[i] = {
-                  ...b,
-                  genres: Array.isArray(details?.genres) ? details.genres : (Array.isArray(b.genres) ? b.genres : []),
-                  seasons: Number.isFinite(details?.number_of_seasons) ? details.number_of_seasons : (Array.isArray(details?.seasons) ? details.seasons.length : (Number.isFinite(b.seasons) ? b.seasons : undefined)),
-                  number_of_seasons: Number.isFinite(details?.number_of_seasons) ? details.number_of_seasons : undefined,
-                  episodes: numEpisodes,
-                  averageEpisodeRuntime: avgRuntime,
-                  episode_run_time: epRunArr,
-                  totalRuntimeMinutes: totalMinutes,
-                  imdbRating: (!imdbRating || imdbRating === "N/A") ? (tmdbRating || b.imdbRating || "N/A") : imdbRating,
-                };
+                {
+                  const nextTv = {
+                    ...b,
+                    genres: Array.isArray(details?.genres) ? details.genres : (Array.isArray(b.genres) ? b.genres : []),
+                    seasons: Number.isFinite(details?.number_of_seasons) ? details.number_of_seasons : (Array.isArray(details?.seasons) ? details.seasons.length : (Number.isFinite(b.seasons) ? b.seasons : undefined)),
+                    number_of_seasons: Number.isFinite(details?.number_of_seasons) ? details.number_of_seasons : undefined,
+                    episodes: numEpisodes,
+                    averageEpisodeRuntime: avgRuntime,
+                    episode_run_time: epRunArr,
+                    totalRuntimeMinutes: totalMinutes,
+                    imdbRating: (!imdbRating || imdbRating === "N/A") ? (tmdbRating || b.imdbRating || "N/A") : imdbRating,
+                  };
+                  const sameTv =
+                    ((Array.isArray(nextTv.genres) ? JSON.stringify(nextTv.genres) : null) === (Array.isArray(b.genres) ? JSON.stringify(b.genres) : null)) &&
+                    nextTv.seasons === b.seasons &&
+                    nextTv.number_of_seasons === b.number_of_seasons &&
+                    nextTv.episodes === b.episodes &&
+                    nextTv.averageEpisodeRuntime === b.averageEpisodeRuntime &&
+                    ((Array.isArray(nextTv.episode_run_time) ? JSON.stringify(nextTv.episode_run_time) : null) === (Array.isArray(b.episode_run_time) ? JSON.stringify(b.episode_run_time) : null)) &&
+                    nextTv.totalRuntimeMinutes === b.totalRuntimeMinutes &&
+                    nextTv.imdbRating === b.imdbRating;
+
+                  results[i] = sameTv ? b : nextTv;
+                }
 
                 continue;
               }
@@ -476,7 +493,19 @@ export default function Index() {
                   id: Number(it.id),
                   type,
                   title,
-                  year: String(it.year || it.release_year || it.first_air_year || it.release_date ? new Date(it.release_date || it.first_air_date || `${it.year || ''}-01-01`).getFullYear() : '') || '',
+                  year: (() => {
+                    const candidates = [it.year, it.release_year, it.first_air_year, it.release_date, it.first_air_date];
+                    for (const c of candidates) {
+                      if (!c) continue;
+                      if (typeof c === 'number' && Number.isFinite(c)) return String(c);
+                      const s = String(c);
+                      if (/^\d{4}$/.test(s)) return s;
+                      const d = new Date(s);
+                      const y = d && Number.isFinite(d.getFullYear()) ? d.getFullYear() : NaN;
+                      if (Number.isFinite(y)) return String(y);
+                    }
+                    return '';
+                  })(),
                   poster,
                   imdbRating: typeof it.imdbRating === 'string' ? it.imdbRating : (typeof it.vote_average === 'number' ? String(it.vote_average.toFixed(1)) : 'N/A'),
                   watchStatus: it.watchStatus === 'watched' ? 'watched' : 'unwatched',
@@ -571,7 +600,7 @@ export default function Index() {
             <input ref={fileInputRef} type="file" accept=".json" onChange={uploadBookmarks} className="hidden" />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
+                <motion.button whileHover={{ y: -1 }} whileTap={{ scale: 0.96 }}
                   className={`p-2 md:p-3 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50 relative ${
                     watchFilter === "all" ? "bg-card/80" :
                     watchFilter === "watched" ? "bg-green-500/80" : "bg-blue-500/80"
@@ -582,7 +611,7 @@ export default function Index() {
                   {watchFilter !== "all" && (
                     <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-primary"></div>
                   )}
-                </button>
+                </motion.button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
                 <DropdownMenuItem
@@ -611,7 +640,7 @@ export default function Index() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
+                <motion.button whileHover={{ y: -1 }} whileTap={{ scale: 0.96 }}
                   className={`p-2 md:p-3 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50 relative ${
                     typeFilter === "all" ? "bg-card/80" : typeFilter === "movie" ? "bg-blue-500/80" : "bg-purple-500/80"
                   }`}
@@ -621,7 +650,7 @@ export default function Index() {
                   {typeFilter !== "all" && (
                     <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-primary"></div>
                   )}
-                </button>
+                </motion.button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
                 <DropdownMenuItem onClick={() => setTypeFilter("all")} className={typeFilter === "all" ? "bg-accent" : ""}>
@@ -638,12 +667,12 @@ export default function Index() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
+                <motion.button whileHover={{ y: -1 }} whileTap={{ scale: 0.96 }}
                   className="p-2 md:p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50"
                   title="Sort"
                 >
                   <ArrowUpDown className="w-4 h-4 md:w-5 md:h-5" />
-                </button>
+                </motion.button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem onClick={() => setSortType("alpha_asc")} className={sortType === "alpha_asc" ? "bg-accent" : ""}>
@@ -664,12 +693,12 @@ export default function Index() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
+                <motion.button whileHover={{ y: -1 }} whileTap={{ scale: 0.96 }}
                   className="p-2 md:p-3 bg-card/80 backdrop-blur-sm text-card-foreground rounded-full hover:bg-card transition-colors shadow-lg border border-border/50"
                   title="More"
                 >
                   <MoreHorizontal className="w-4 h-4 md:w-5 md:h-5" />
-                </button>
+                </motion.button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem
@@ -734,7 +763,6 @@ export default function Index() {
                   setSelectionMode(false);
                   setSelectedKeys([]);
                   setShowFranchiseDialog(false);
-                  setFranchiseName("");
                   setFranchiseFilter("");
                   setMissingRatings([]);
 
@@ -819,7 +847,7 @@ export default function Index() {
           {/* Bookmarks Grid - Center-aligned */}
           {hasBookmarks ? (
             <div className="flex justify-center">
-              <div className="max-w-7xl w-full">
+              <div className="max-w-[1600px] w-full">
                 <BookmarksGrid
                   bookmarks={filteredBookmarks}
                   sortType={sortType}
