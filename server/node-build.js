@@ -1,4 +1,5 @@
 import path from "path";
+import { fileURLToPath } from "url";
 import { createServer } from "./index.js";
 import express from "express";
 
@@ -6,7 +7,13 @@ const app = createServer();
 const port = process.env.PORT || 3000;
 
 // In production, serve the built SPA files
-const distPath = path.join(process.cwd(), "dist/spa");
+// Get the directory of the built server file, then go up to reach dist/spa
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const distPath = path.resolve(__dirname, "../spa");
+
+console.log(`📂 Server __dirname: ${__dirname}`);
+console.log(`📂 Resolved distPath: ${distPath}`);
 
 // Serve static files
 app.use(express.static(distPath));
