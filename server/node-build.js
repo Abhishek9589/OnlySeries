@@ -10,10 +10,25 @@ const port = process.env.PORT || 3000;
 // Get the directory of the built server file, then go up to reach dist/spa
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const distPath = path.resolve(__dirname, "../spa");
+let distPath = path.resolve(__dirname, "../spa");
+
+// Handle Vite build quirk where import.meta.url includes /src/ prefix
+if (distPath.includes('/src/dist/spa')) {
+  distPath = distPath.replace('/src/dist/spa', '/dist/spa');
+}
 
 console.log(`📂 Server __dirname: ${__dirname}`);
 console.log(`📂 Resolved distPath: ${distPath}`);
+
+// Check if distPath exists
+import { existsSync, readdirSync } from "fs";
+if (existsSync(distPath)) {
+  console.log(`✅ distPath exists. Contents: ${readdirSync(distPath).join(', ')}`);
+} else {
+  console.log(`❌ distPath does not exist!`);
+  console.log(`📂 Parent directory: ${path.dirname(distPath)}`);
+  console.log(`📂 Parent contents: ${existsSync(path.dirname(distPath)) ? readdirSync(path.dirname(distPath)).join(', ') : 'N/A'}`);
+}
 
 // Serve static files
 app.use(express.static(distPath));

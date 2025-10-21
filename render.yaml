@@ -3,7 +3,7 @@ services:
     name: onlyseries-towatch
     runtime: node
     plan: free
-    buildCommand: npm install && npm run build
+    buildCommand: npm install && npm run build && ls -la dist/spa/
     startCommand: npm start
     envVars:
       - key: NODE_ENV
