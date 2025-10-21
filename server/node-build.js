@@ -10,10 +10,12 @@ const port = process.env.PORT || 3000;
 // Get the directory of the built server file, then go up to reach dist/spa
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const distPath = path.resolve(__dirname, "../spa");
+let distPath = path.resolve(__dirname, "../spa");
 
-console.log(`📂 Server __dirname: ${__dirname}`);
-console.log(`📂 Resolved distPath: ${distPath}`);
+// Handle Vite build quirk where import.meta.url includes /src/ prefix
+if (distPath.includes('/src/dist/spa')) {
+  distPath = distPath.replace('/src/dist/spa', '/dist/spa');
+}
 
 // Serve static files
 app.use(express.static(distPath));
