@@ -3,6 +3,7 @@ services:
     name: fusion-starter
     runtime: node
     plan: free
+    rootDir: .
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
