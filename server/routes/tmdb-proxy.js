@@ -183,6 +183,25 @@ export const searchTV = async (req, res) => {
 };
 
 // Proxy for TMDb trending movies and TV
+export const trendingMovies = async (_req, res) => {
+  try {
+    const response = await tmdbGet(`https://api.themoviedb.org/3/trending/movie/week`);
+    res.json(response.data);
+  } catch (error) {
+    console.error("TMDb trending movies error:", error);
+    res.status(500).json({ error: "Failed to get trending movies" });
+  }
+};
+
+export const trendingTV = async (_req, res) => {
+  try {
+    const response = await tmdbGet(`https://api.themoviedb.org/3/trending/tv/week`);
+    res.json(response.data);
+  } catch (error) {
+    console.error("TMDb trending tv error:", error);
+    res.status(500).json({ error: "Failed to get trending TV" });
+  }
+};
 
 // Proxy for TMDb movie details
 export const getMovieDetails = async (req, res) => {
@@ -290,6 +309,23 @@ export const getTVDetails = async (req, res) => {
 };
 
 // Proxy for TMDb TV season
+export const getTVSeason = async (req, res) => {
+  try {
+    const { id, season } = req.params;
+    if (!id || !season) {
+      return res
+        .status(400)
+        .json({ error: "TV show ID and season number are required" });
+    }
+
+    const response = await tmdbGet(`https://api.themoviedb.org/3/tv/${id}/season/${season}`);
+
+    res.json(response.data);
+  } catch (error) {
+    console.error("TMDb TV season error:", error);
+    res.status(500).json({ error: "Failed to get TV season details" });
+  }
+};
 
 // Proxy for OMDb API with automatic key rotation
 export const getIMDbRating = async (req, res) => {

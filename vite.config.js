@@ -5,19 +5,17 @@ import { createServer } from "./server/index.js";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  root: "client",
   server: {
     host: "::",
     port: 8080,
     fs: {
-      allow: [path.resolve(process.cwd(), "client"), path.resolve(process.cwd(), "shared")],
-      deny: [".env", ".env.*", "*.{crt,pem}", "**/.git/**", path.resolve(process.cwd(), "server") + "/**"],
+      allow: ["./client", "./shared"],
+      deny: [".env", ".env.*", "*.{crt,pem}", "**/.git/**", "server/**"],
     },
   },
   build: {
     outDir: "dist/spa",
   },
-  publicDir: "client/public",
   plugins: [react(), expressPlugin()],
   resolve: {
     alias: {

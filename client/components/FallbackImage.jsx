@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Film, Tv, ImageOff } from 'lucide-react';
-import { motion } from 'framer-motion';
 
 export default function FallbackImage({ 
   src, 
@@ -41,23 +40,18 @@ export default function FallbackImage({
   return (
     <div className="relative">
       {isLoading && (
-        <div className={`absolute inset-0 bg-gray-blue/30 animate-pulse pointer-events-none ${className}`}>
+        <div className={`absolute inset-0 bg-gray-blue/30 animate-pulse ${className}`}>
           <div className="flex items-center justify-center h-full">
             <div className="w-8 h-8 border-2 border-ring border-t-transparent rounded-full animate-spin"></div>
           </div>
         </div>
       )}
-      <motion.img
+      <img
         src={src}
         alt={alt}
         className={className}
         onError={handleError}
         onLoad={handleLoad}
-        loading="lazy"
-        decoding="async"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: isLoading ? 0 : 1 }}
-        transition={{ duration: 0.25, ease: 'easeOut' }}
         style={{ display: hasError ? 'none' : 'block' }}
       />
     </div>

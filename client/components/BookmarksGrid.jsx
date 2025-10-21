@@ -1,7 +1,7 @@
-import { X, Clock, Star, Tv, Eye, EyeOff, Play } from "lucide-react";
+import { X, Clock, Star, Tv, Eye, EyeOff, Play, Search } from "lucide-react";
+import { gsap } from "gsap";
 import FallbackImage from "./FallbackImage";
 import React, { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { getMovieDetails, getTVDetails, getIMDbRating } from "../lib/api";
 
 const PAGE_SIZE = 36;
@@ -139,8 +139,8 @@ function BookmarkCard({
 
   if (loading) {
     return (
-      <div className="relative w-full animate-pulse">
-        <div className="aspect-[2/3] rounded-none bg-card/60" />
+      <div className="relative w-full max-w-[220px] animate-pulse">
+        <div className="aspect-[2/3] rounded-2xl bg-card/60 border border-border/40" />
         <div className="mt-3 h-4 bg-card/50 rounded w-3/4 mx-auto" />
         <div className="mt-2 h-3 bg-card/40 rounded w-1/2 mx-auto" />
       </div>
@@ -149,7 +149,7 @@ function BookmarkCard({
 
   return (
     <div
-      className={`relative group w-full cursor-default`}
+      className={`relative group w-full max-w-[220px] cursor-default`}
       onMouseEnter={() => { setHoveredCard(`${item.type}-${item.id}`); ensureVerifiedImdbRating(); }}
       onMouseLeave={() => setHoveredCard(null)}
       onClick={() => {
@@ -158,9 +158,8 @@ function BookmarkCard({
           if (item.type === 'movie') {
             onToggleSelect && onToggleSelect(item);
           }
-          return;
         }
-        onCardClick && onCardClick(item);
+        // Otherwise intentionally do NOT open the item on click (click-to-open behavior removed)
       }}
       onKeyDown={(e) => {
         if (selectionMode) {
@@ -170,21 +169,18 @@ function BookmarkCard({
           }
           return;
         }
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onCardClick && onCardClick(item);
-        }
+        // Intentionally do NOT open the item on Enter/Space when not in selection mode
       }}
       role={selectionMode && item.type === 'movie' ? 'button' : undefined}
       tabIndex={(!selectionMode || (selectionMode && item.type === 'movie')) ? 0 : -1}
       aria-pressed={selectionMode && item.type === 'movie' ? isSelected(item) : undefined}
     >
-      <div className={`relative aspect-[2/3] rounded-none overflow-hidden bg-card/80 backdrop-blur-sm ${isSelected(item) ? 'ring-2 ring-ring' : ''} transition-all duration-300`}>
+      <div className={`relative aspect-[2/3] rounded-2xl overflow-hidden bg-card/80 backdrop-blur-sm border ${isSelected(item) ? 'border-primary ring-2 ring-ring' : 'border-border/30'} shadow-xl transition-all duration-300 group-hover:scale-105 group-hover:shadow-2xl`}>
         <FallbackImage
           src={item.poster}
           alt={item.title}
           type={item.type}
-          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
         />
 
         {selectionMode && item.type === 'movie' && (
@@ -203,9 +199,8 @@ function BookmarkCard({
           </label>
         )}
 
-        <AnimatePresence>
         {hoveredCard === `${item.type}-${item.id}` && !selectionMode && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="absolute inset-0 bg-black/80 flex flex-col justify-between p-4 backdrop-blur-sm">
+          <div className="absolute inset-0 bg-black/80 flex flex-col justify-between p-4 backdrop-blur-sm">
             <div className="flex justify-between items-start">
               <button
                 onClick={(e) => {
@@ -276,9 +271,8 @@ function BookmarkCard({
                 </>
               )}
             </div>
-          </motion.div>
+          </div>
         )}
-        </AnimatePresence>
       </div>
     </div>
   );
@@ -296,13 +290,16 @@ function PaginationControlsBar({
   searchResults,
   onCardClick,
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const inputRef = useRef(null);
+  useEffect(() => { if (expanded) { inputRef.current?.focus(); } }, [expanded]);
   return (
-    <div className="w-full first:hidden">
+    <div className="w-full">
       <div className="flex items-center gap-2 justify-between">
         <div />
         <div className="flex-1 flex items-center justify-center gap-2 sm:gap-3 text-xs sm:text-sm text-muted-foreground">
           <button
-            onClick={() => { setCurrentPage((p) => Math.max(1, p - 1)); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {} }}
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage <= 1}
             className="px-2 sm:px-3 py-1 rounded-md bg-card border border-border text-foreground hover:bg-card/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Previous page"
@@ -325,7 +322,6 @@ function PaginationControlsBar({
                 } else {
                   setCurrentPage(1);
                 }
-                try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
               }
             }}
             onBlur={() => {
@@ -336,7 +332,6 @@ function PaginationControlsBar({
               } else {
                 setCurrentPage(1);
               }
-              try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
             }}
             inputMode="numeric"
             pattern="[0-9]*"
@@ -345,7 +340,7 @@ function PaginationControlsBar({
           />
           <span>of {totalPages}</span>
           <button
-            onClick={() => { setCurrentPage((p) => Math.min(totalPages, p + 1)); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {} }}
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
             disabled={currentPage >= totalPages}
             className="px-2 sm:px-3 py-1 rounded-md bg-card border border-border text-foreground hover:bg-card/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Next page"
@@ -353,7 +348,78 @@ function PaginationControlsBar({
             Next
           </button>
         </div>
-        <div />
+        <div className="hidden md:flex justify-end items-center gap-2">
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="p-2 rounded-full bg-card border border-border text-foreground hover:bg-card/80 transition-colors"
+            aria-label={expanded ? "Collapse search" : "Expand search"}
+            title={expanded ? "Collapse search" : "Expand search"}
+          >
+            <Search className="w-4 h-4" />
+          </button>
+          <div className={`relative transition-all duration-200 ${expanded ? "w-64 sm:w-80" : "w-0"}`}>
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4 ${expanded ? "opacity-100" : "opacity-0"}`} />
+            <input
+              ref={inputRef}
+              value={localSearch}
+              onChange={(e) => setLocalSearch(e.target.value)}
+              placeholder="Search your list..."
+              tabIndex={expanded ? 0 : -1}
+              className={`w-full ${expanded ? "pl-9 pr-9 py-2 sm:py-2.5 border border-border/70" : "p-0 border-0"} bg-card/80 backdrop-blur-sm rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary transition-all shadow-lg text-foreground`}
+            />
+            {expanded && localSearch && (
+              <button
+                onClick={() => setLocalSearch("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted-foreground hover:text-foreground"
+                aria-label="Clear"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+
+            {expanded && searchQ && (
+              <div className="absolute z-50 left-0 right-0 mt-2 max-h-72 overflow-y-auto custom-scrollbar bg-card/95 backdrop-blur-md border border-border/50 rounded-xl shadow-2xl">
+                {searchResults.length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
+                ) : (
+                  <ul className="divide-y divide-border/50">
+                    {searchResults.slice(0, 20).map((res) => {
+                      if (res.kind === "franchise") {
+                        const cover = res.movies[0];
+                        return (
+                          <li
+                            key={res.franchiseKey}
+                            className="flex items-center gap-3 px-3 py-2 hover:bg-secondary/40 cursor-pointer"
+                            onClick={() => onCardClick && onCardClick({ ...cover, franchise: res.franchise })}
+                          >
+                            <img src={cover.poster} alt={res.franchise} className="w-8 h-12 object-cover rounded-md" />
+                            <div className="flex-1">
+                              <div className="text-sm text-foreground font-medium">{res.franchise}</div>
+                              <div className="text-xs text-muted-foreground">Franchise</div>
+                            </div>
+                          </li>
+                        );
+                      }
+                      const it = res.item;
+                      return (
+                        <li
+                          key={`${it.type}-${it.id}`}
+                          className={`flex items-center gap-3 px-3 py-2 hover:bg-secondary/40 ${it.type === 'tv' || it.type === 'movie' ? '' : 'cursor-pointer'}`}
+                        >
+                          <img src={it.poster} alt={it.title} className="w-8 h-12 object-cover rounded-md" />
+                          <div className="flex-1">
+                            <div className="text-sm text-foreground font-medium" style={{display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'normal'}}>{it.title}</div>
+                            <div className="text-xs text-muted-foreground capitalize">{it.type}</div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -376,6 +442,30 @@ export default function BookmarksGrid({
   const [pageInput, setPageInput] = useState("1");
   const [localSearch, setLocalSearch] = useState("");
 
+  useEffect(() => {
+    // Animate new cards entering from center
+    if (gridRef.current && bookmarks.length > 0) {
+      const cards = Array.from(gridRef.current.children);
+      const newCards = cards.slice(-1); // Get the last added card
+
+      if (newCards.length > 0) {
+        // Prevent scroll issues by using a more stable animation
+        gsap.fromTo(
+          newCards,
+          {
+            scale: 0.8,
+            opacity: 0,
+          },
+          {
+            scale: 1,
+            opacity: 1,
+            duration: 0.3,
+            ease: "power2.out",
+          },
+        );
+      }
+    }
+  }, [bookmarks.length]);
 
   const formatWatchTime = (item) => {
     if (item.type === "movie") {
@@ -554,34 +644,25 @@ export default function BookmarksGrid({
 
       <div
         ref={gridRef}
-        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-6 gap-0 justify-items-stretch items-stretch"
+        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6 lg:gap-8 justify-items-center place-items-center"
       >
-        <AnimatePresence>
         {visibleCards.map((card) => {
           if (card.kind === "franchise") {
             const { franchise, movies } = card;
             return (
-              <motion.div
+              <div
                 key={card.franchiseKey}
-                className="relative group cursor-pointer w-full"
-                role="button"
-                tabIndex={0}
-                aria-label={`Open ${franchise}`}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.2 }}
-                whileHover={{ y: -2 }}
+                className="relative group cursor-pointer w-full max-w-[220px]"
                 onMouseEnter={() => setHoveredCard(card.franchiseKey)}
                 onMouseLeave={() => setHoveredCard(null)}
                 onClick={() => { if (movies[0].type === 'tv') return; onCardClick && onCardClick({ ...movies[0], franchise }); }}
               >
-                <div className="relative aspect-[2/3] rounded-none overflow-hidden bg-gradient-to-br from-card via-card/90 to-card/80 transition-all duration-300">
+                <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-gradient-to-br from-card via-card/90 to-card/80 border border-border/50 shadow-xl transition-all duration-300 group-hover:scale-105 group-hover:shadow-2xl group-hover:border-primary/30">
                   <FallbackImage
                     src={movies[0].poster}
                     alt={franchise}
                     type={movies[0].type}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                   />
 
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
@@ -667,40 +748,32 @@ export default function BookmarksGrid({
                     </div>
                   )}
                 </div>
-              </motion.div>
+              </div>
             );
           }
 
           const item = card.item;
           return (
-            <motion.div
+            <BookmarkCard
               key={`${item.type}-${item.id}`}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2 }}
-              whileHover={{ y: -2 }}
-            >
-              <BookmarkCard
-                item={item}
-                selectionMode={selectionMode}
-                isSelected={isSelected}
-                onToggleSelect={onToggleSelect}
-                onToggleWatchStatus={onToggleWatchStatus}
-                onRemoveBookmark={onRemoveBookmark}
-                onUpdatePatch={(patch) => {
-                  if (typeof onUpdateBookmark === 'function') {
-                    onUpdateBookmark(item.id, item.type, patch);
-                  }
-                }}
-                hoveredCard={hoveredCard}
-                setHoveredCard={setHoveredCard}
-                formatWatchTime={formatWatchTime}
-              />
-            </motion.div>
+              item={item}
+              selectionMode={selectionMode}
+              isSelected={isSelected}
+              onToggleSelect={onToggleSelect}
+              onToggleWatchStatus={onToggleWatchStatus}
+              onRemoveBookmark={onRemoveBookmark}
+              onCardClick={onCardClick}
+              onUpdatePatch={(patch) => {
+                if (typeof onUpdateBookmark === 'function') {
+                  onUpdateBookmark(item.id, item.type, patch);
+                }
+              }}
+              hoveredCard={hoveredCard}
+              setHoveredCard={setHoveredCard}
+              formatWatchTime={formatWatchTime}
+            />
           );
         })}
-        </AnimatePresence>
       </div>
 
       <PaginationControlsBar
