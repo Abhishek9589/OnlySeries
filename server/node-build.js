@@ -9,7 +9,26 @@ const port = process.env.PORT || 3000;
 // In production, serve the built SPA files
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+<<<<<<< HEAD
 const distPath = path.join(__dirname, "../spa");
+=======
+let distPath = path.resolve(__dirname, "../spa");
+
+// Handle Vite build quirk where import.meta.url includes /src/ prefix
+if (distPath.includes('/src/dist/spa')) {
+  distPath = distPath.replace('/src/dist/spa', '/dist/spa');
+}
+
+// Check if distPath exists
+import { existsSync, readdirSync } from "fs";
+if (existsSync(distPath)) {
+  console.log(`✅ distPath exists. Contents: ${readdirSync(distPath).join(', ')}`);
+} else {
+  console.log(`❌ distPath does not exist!`);
+  console.log(`📂 Parent directory: ${path.dirname(distPath)}`);
+  console.log(`📂 Parent contents: ${existsSync(path.dirname(distPath)) ? readdirSync(path.dirname(distPath)).join(', ') : 'N/A'}`);
+}
+>>>>>>> 9365d711fb7f720cccfd44f997bdf1dd381585ad
 
 // Serve static files
 app.use(express.static(distPath));
