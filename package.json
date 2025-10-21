@@ -15,7 +15,7 @@
     "build": "npm run build:client && npm run build:server",
     "build:client": "vite build",
     "build:server": "vite build --config vite.config.server.js",
-    "start": "node dist/server/production.mjs",
+    "start": "node dist/server/node-build.mjs",
     "test": "vitest --run",
     "format.fix": "prettier --write .",
     "typecheck": "echo 'TypeScript checking disabled - project converted to JavaScript'"
