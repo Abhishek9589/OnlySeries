@@ -7,7 +7,7 @@ export default defineConfig({
     lib: {
       entry: path.resolve(process.cwd(), "server/node-build.js"),
       name: "server",
-      fileName: "production",
+      fileName: (format) => "production.mjs",
       formats: ["es"],
     },
     outDir: "dist/server",
@@ -35,7 +35,7 @@ export default defineConfig({
       ],
       output: {
         format: "es",
-        entryFileNames: "[name].mjs",
+        entryFileNames: "production.mjs",
       },
     },
     minify: false, // Keep readable for debugging
