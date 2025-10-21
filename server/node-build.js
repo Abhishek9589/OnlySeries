@@ -11,14 +11,6 @@ const port = process.env.PORT || 3000;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 let distPath = path.resolve(__dirname, "../spa");
-<<<<<<< HEAD
-
-// Handle Vite build quirk where import.meta.url includes /src/ prefix
-if (distPath.includes('/src/dist/spa')) {
-  distPath = distPath.replace('/src/dist/spa', '/dist/spa');
-}
-=======
->>>>>>> 5d70811e9aacbb54b3492c6757caa6c761f99551
 
 // Handle Vite build quirk where import.meta.url includes /src/ prefix
 if (distPath.includes('/src/dist/spa')) {
